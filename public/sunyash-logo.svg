@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none">
+  <!-- Outer glowing subtle shadow -->
+  <defs>
+    <linearGradient id="orangeRibbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF3D00" />
+      <stop offset="50%" stop-color="#FF6D00" />
+      <stop offset="100%" stop-color="#FF9100" />
+    </linearGradient>
+    <linearGradient id="yellowRibbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFAB00" />
+      <stop offset="100%" stop-color="#FFD600" />
+    </linearGradient>
+    <linearGradient id="cyanRibbon" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00B0FF" />
+      <stop offset="100%" stop-color="#00E5FF" />
+    </linearGradient>
+    <linearGradient id="blueRibbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1565C0" />
+      <stop offset="60%" stop-color="#1E88E5" />
+      <stop offset="100%" stop-color="#2196F3" />
+    </linearGradient>
+    <linearGradient id="darkBlueFold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D47A1" />
+      <stop offset="100%" stop-color="#1565C0" />
+    </linearGradient>
+    <filter id="subtleDrop" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.15" />
+    </filter>
+  </defs>
+
+  <g filter="url(#subtleDrop)">
+    <!-- Top-Right Orange Facet -->
+    <path d="M60 12 L98 50 L82 66 L60 44 L60 12 Z" fill="url(#orangeRibbon)" />
+    
+    <!-- Top Orange-Red Tip Triangle -->
+    <path d="M60 12 L76 28 L44 28 Z" fill="#D50000" opacity="0.3" />
+
+    <!-- Bottom-Right Yellow Facet -->
+    <path d="M82 66 L60 88 L44 72 L66 50 L82 66 Z" fill="url(#yellowRibbon)" />
+
+    <!-- Central Cyan/Sky-Blue Diagonal Ribbon -->
+    <path d="M38 78 L60 100 L76 84 L54 62 L38 78 Z" fill="url(#cyanRibbon)" />
+
+    <!-- Left & Bottom-Left Royal Blue Ribbon -->
+    <path d="M60 12 L22 50 L38 66 L60 44 L60 12 Z" fill="url(#blueRibbon)" />
+
+    <!-- Deep Blue Fold Shadow -->
+    <path d="M22 50 L44 72 L38 78 L16 56 Z" fill="url(#darkBlueFold)" />
+    
+    <!-- Center Inner Diamond Highlight -->
+    <polygon points="60,34 76,50 60,66 44,50" fill="#FFFFFF" opacity="0.9" />
+    <polygon points="60,40 70,50 60,60 50,50" fill="url(#orangeRibbon)" opacity="0.85" />
+  </g>
+</svg>

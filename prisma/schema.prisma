@@ -1,0 +1,600 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model RawMaterial {
+  id           String   @id @default(cuid())
+  materialCode String?
+  name         String
+  sku          String   @unique
+  category     String
+  unit         String
+  currentStock Float    @default(0)
+  minStock     Float    @default(0)
+  maxStock     Float?
+  unitCost     Float    @default(0)
+  supplierId   String?
+  supplierName String?
+  location     String?
+  description  String?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ProductMaster {
+  id                          String   @id @default(cuid())
+  productCode                 String   @unique
+  sku                         String   @unique
+  name                        String
+  category                    String
+  brand                       String?
+  connectorType               String?
+  cableLengthWireSpec         String?
+  vehicleScannerCompatibility String?
+  subcategory                 String?
+  description                 String?
+  purchaseCost                Float    @default(0)
+  sellingPrice                Float    @default(0)
+  discount                    Float    @default(0)
+  gstPercent                  Float    @default(18)
+  hsnSac                      String?
+  openingStock                Float    @default(0)
+  currentStock                Float    @default(0)
+  minStock                    Float    @default(0)
+  maxStock                    Float    @default(1000)
+  status                      String   @default("ACTIVE")
+  imageUrl                    String?
+  rawMaterialQuantities       String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+}
+
+model FinishedGood {
+  id                String   @id @default(cuid())
+  sku               String   @unique
+  name              String
+  modelNumber       String?
+  category          String
+  currentStock      Float    @default(0)
+  minStock          Float    @default(0)
+  sellingPrice      Float    @default(0)
+  manufacturingCost Float    @default(0)
+  description       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model BOM {
+  id          String    @id @default(cuid())
+  bomNumber   String    @unique
+  productId   String
+  productName String
+  version     Int       @default(1)
+  status      String    @default("Active")
+  createdDate String
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  items       BOMItem[]
+}
+
+model BOMItem {
+  id              String  @id @default(cuid())
+  bomId           String
+  rawMaterialId   String
+  rawMaterialName String
+  sku             String
+  unit            String
+  quantity        Float
+  wastagePercent  Float   @default(0)
+  notes           String?
+  bom             BOM     @relation(fields: [bomId], references: [id], onDelete: Cascade)
+}
+
+model Customer {
+  id                String   @id @default(cuid())
+  customerCode      String   @unique
+  name              String
+  companyName       String
+  customerType      String   @default("Distributor")
+  contactPerson     String
+  mobile            String
+  alternateMobile   String?
+  email             String
+  gstNumber         String?
+  panNumber         String?
+  gstType           String   @default("Regular")
+  address           String
+  city              String?
+  state             String?
+  pincode           String?
+  country           String   @default("India")
+  category          String   @default("Distributor")
+  paymentTerms      String   @default("Net 30 Days")
+  creditLimit       Float    @default(0)
+  assignedSalesUser String?
+  totalOrders       Int      @default(0)
+  totalSales        Float    @default(0)
+  totalPaid         Float    @default(0)
+  totalOutstanding  Float    @default(0)
+  status            String   @default("ACTIVE")
+  lastFollowUp      String?
+  nextFollowUpDate  String?
+  lastOrderDate     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Supplier {
+  id               String   @id @default(cuid())
+  supplierCode     String   @unique
+  name             String
+  companyName      String?
+  contactPerson    String
+  email            String
+  phone            String
+  gstNumber        String?
+  address          String
+  city             String?
+  state            String?
+  pincode          String?
+  category         String
+  totalPurchase    Float    @default(0)
+  totalOutstanding Float    @default(0)
+  paymentTerms     String   @default("Net 30 Days")
+  bankName          String?
+  accountNumber     String?
+  ifscCode          String?
+  branchName        String?
+  accountHolderName String?
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Lead {
+  id                    String   @id @default(cuid())
+  leadNumber            String   @unique
+  leadName              String?
+  companyName           String?
+  contactPerson         String?
+  mobile                String?
+  alternateMobile       String?
+  email                 String?
+  address               String?
+  city                  String?
+  state                 String?
+  pincode               String?
+  gstin                 String?
+  industry              String?
+  source                String   @default("Website")
+  salesperson           String?
+  website               String?
+  requirement           String?
+  interestedProductId   String?
+  interestedProductName String?
+  expectedValue         Float?   @default(0)
+  assignedUser          String?
+  status                String   @default("NEW")
+  nextFollowUpDate      String?
+  notes                 String?
+  importId              String?
+  convertedCustomerId   String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model LeadImportHistory {
+  id             String   @id @default(cuid())
+  fileName       String
+  importedBy     String
+  importDate     String
+  totalRows      Int      @default(0)
+  newLeads       Int      @default(0)
+  updatedLeads   Int      @default(0)
+  duplicateLeads Int      @default(0)
+  failedRows     Int      @default(0)
+  status         String   @default("Completed")
+  errorReport    String?
+  createdAt      DateTime @default(now())
+}
+
+model SalesOrder {
+  id                 String           @id @default(cuid())
+  orderNumber        String           @unique
+  salesChannel       String           @default("Website")
+  salesperson        String?
+  shippingDetails    String?
+  invoiceNumber      String?
+  customerId         String
+  customerName       String
+  orderDate          String
+  dueDate            String
+  subtotal           Float            @default(0)
+  discountAmount     Float            @default(0)
+  taxAmount          Float            @default(0)
+  grandTotal         Float            @default(0)
+  amountPaid         Float            @default(0)
+  amountOutstanding  Float            @default(0)
+  pendingAmount      Float            @default(0)
+  totalAmount        Float            @default(0)
+  paymentStatus      String           @default("UNPAID")
+  dispatchStatus     String           @default("PENDING")
+  orderStatus        String           @default("CONFIRMED")
+  createdBy          String?
+  // Product Team processing & packing fields
+  packedImage        String?
+  productTeamRemarks String?
+  batchNumber        String?
+  serialNumber       String?
+  productionStatus   String?
+  packingStatus      String?
+  productionNotes    String?
+  packingNotes       String?
+  productionDate     String?
+  packingDate        String?
+  productionImages   String?
+  rawMaterialsDeducted Boolean?         @default(false)
+  rawMaterialsUsed   String?
+  // Quotation linkage
+  quotationId        String?
+  quotationNumber    String?
+  paymentMode        String?          @default("Prepaid")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  items              SalesOrderItem[]
+}
+
+model Quotation {
+  id                 String          @id @default(cuid())
+  quotationNumber    String          @unique
+  customerId         String
+  customerName       String
+  quotationDate      String
+  validUntil         String
+  status             String          @default("Draft")
+  subtotal           Float           @default(0)
+  discountAmount     Float           @default(0)
+  taxAmount          Float           @default(0)
+  totalAmount        Float           @default(0)
+  termsAndConditions String?
+  notes              String?
+  salesperson        String?
+  salesOrderId       String?
+  orderNumber        String?
+  adjustment         Float?          @default(0)
+  billingAddress     String?
+  contactPerson      String?
+  customerGst        String?
+  customerPhone      String?
+  deliveryTerms      String?
+  freightCharges     Float?          @default(0)
+  paymentMode        String?         @default("Prepaid")
+  shippingAddress    String?
+  signatory          String?
+  warrantyPeriod     String?
+  warrantyTerms      String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  items              QuotationItem[]
+}
+
+model QuotationItem {
+  id             String    @id @default(cuid())
+  quotationId    String
+  itemType       String    @default("PRODUCT")
+  productId      String
+  productName    String
+  sku            String
+  unit           String?   @default("PCS")
+  quantity       Int
+  rate           Float
+  discount       Float     @default(0)
+  gstPercent     Float     @default(18)
+  totalAmount    Float
+  warrantyPeriod String?
+  quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+}
+
+model SalesOrderItem {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  productId    String
+  productName  String
+  sku          String
+  quantity     Int
+  sellingPrice Float
+  unitPrice    Float
+  discount     Float      @default(0)
+  gstPercent   Float      @default(18)
+  totalPrice   Float
+  packingStatus String?
+  productImage String?
+  batchNumber  String?
+  serialNumber String?
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+}
+
+model SalesInvoice {
+  id                 String   @id @default(cuid())
+  invoiceNumber      String   @unique
+  invoiceDate        String
+  salesOrderId       String
+  salesOrderNumber   String
+  customerId         String
+  customerName       String
+  gstNumber          String?
+  subtotal           Float    @default(0)
+  discountAmount     Float    @default(0)
+  gstAmount          Float    @default(0)
+  grandTotal         Float    @default(0)
+  paidAmount         Float    @default(0)
+  outstandingAmount  Float    @default(0)
+  paymentStatus      String   @default("Unpaid")
+  status             String   @default("Active")
+  termsAndConditions String?
+  createdBy          String?
+  quotationId        String?
+  quotationNumber    String?
+  customerNumber     String?
+  invoiceStatus      String?
+  productionStatus   String?
+  packedImages       String?
+  paymentProofFiles  String?
+  paymentProofUploadedBy   String?
+  paymentProofUploadedDate String?
+  paymentVerificationNotes String?
+  paymentRejectionReason   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model SalesDispatch {
+  id               String         @id @default(cuid())
+  dispatchNumber   String         @unique
+  salesOrderId     String
+  salesOrderNumber String
+  invoiceId        String?
+  invoiceNumber    String?
+  customerId       String
+  customerName     String
+  dispatchDate     String
+  totalQuantity    Int            @default(0)
+  transporter      String
+  vehicleNumber    String?
+  trackingNumber   String
+  deliveryStatus   String         @default("Dispatched")
+  remarks          String?
+  createdBy        String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  items            DispatchItem[]
+}
+
+model DispatchItem {
+  id                   String        @id @default(cuid())
+  dispatchId           String
+  productId            String
+  productName          String
+  sku                  String
+  orderedQuantity      Int
+  previouslyDispatched Int           @default(0)
+  remainingQuantity    Int
+  dispatchQuantity     Int
+  dispatch             SalesDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+}
+
+model ProductReturn {
+  id                  String   @id @default(cuid())
+  returnNumber        String   @unique
+  customerName        String
+  salesInvoice        String
+  productId           String
+  productName         String
+  quantity            Int
+  returnedQuantity    Int?
+  replacementQuantity Int?
+  returnReason        String
+  claimType           String?
+  defect              String?
+  inspectionNotes     String?
+  actionTaken         String?
+  repairStatus        String?
+  finalAction         String?
+  closingDate         String?
+  status              String   @default("Requested")
+  date                String
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model SalesReturn {
+  id                  String   @id @default(cuid())
+  returnNumber        String   @unique
+  customerId          String
+  customerName        String
+  invoiceId           String?
+  invoiceNumber       String?
+  productId           String
+  productName         String
+  quantity            Int
+  returnedQuantity    Int?
+  replacementQuantity Int?
+  returnReason        String
+  claimType           String?
+  description         String
+  repairStatus        String?
+  finalAction         String?
+  closingDate         String?
+  returnDate          String
+  status              String   @default("Requested")
+  productReturnId     String?
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PurchaseOrder {
+  id             String              @id @default(cuid())
+  poNumber       String              @unique
+  invoiceNumber  String?
+  supplierId     String
+  supplierName   String
+  orderDate      String
+  expectedDate   String
+  paymentDueDate String?
+  subtotal       Float               @default(0)
+  discountAmount Float               @default(0)
+  gstAmount      Float               @default(0)
+  freight        Float               @default(0)
+  totalAmount    Float               @default(0)
+  amountPaid     Float               @default(0)
+  paymentTerms   String              @default("Net 30 Days")
+  paymentStatus  String              @default("UNPAID")
+  status         String              @default("Pending")
+  createdBy      String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  items          PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(cuid())
+  poId             String
+  rawMaterialId    String
+  rawMaterialName  String
+  sku              String
+  quantity         Int
+  receivedQuantity Int           @default(0)
+  unit             String?
+  unitCost         Float
+  discountPercent  Float         @default(0)
+  gstPercent       Float         @default(18)
+  totalCost        Float
+  purchaseOrder    PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+}
+
+model ProductionOrder {
+  id                 String   @id @default(cuid())
+  orderNumber        String   @unique
+  finishedGoodId     String
+  finishedGoodName   String
+  productId          String
+  productName        String
+  bomId              String
+  bomVersion         Int      @default(1)
+  plannedQuantity    Int
+  producedQuantity   Int      @default(0)
+  quantityToProduce  Int
+  productionDate     String
+  expectedCompletion String
+  startDate          String?
+  completionDate     String?
+  priority           String   @default("Medium")
+  status             String   @default("Draft")
+  assignedEngineer   String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model CustomerPayment {
+  id                String   @id @default(cuid())
+  paymentNumber     String   @unique
+  customerId        String
+  customerName      String
+  customerNumber    String?
+  invoiceId         String
+  invoiceNumber     String
+  invoiceAmount     Float?
+  paidAmount        Float?
+  pendingAmount     Float?
+  paymentDate       String
+  amount            Float
+  paymentMode       String
+  referenceNumber   String
+  notes             String?
+  proofFiles        String?
+  uploadedBy        String?
+  uploadedDate      String?
+  verificationNotes String?
+  rejectionReason   String?
+  verifiedBy        String?
+  verifiedDate      String?
+  status            String   @default("Completed")
+  createdAt         DateTime @default(now())
+}
+
+model SupplierPayment {
+  id           String   @id @default(cuid())
+  paymentId    String   @unique
+  supplierId   String
+  supplierName String
+  billPoNumber String
+  paymentDate  String
+  amount       Float
+  paymentMode  String
+  referenceNo  String
+  notes        String?
+  status       String   @default("Completed")
+  createdAt    DateTime @default(now())
+}
+
+model Meeting {
+  id              String   @id @default(cuid())
+  title           String
+  meetingType     String   @default("Customer")
+  participantId   String?
+  participantName String
+  assignedUser    String
+  date            String
+  time            String
+  status          String   @default("Scheduled")
+  location        String?
+  meetLink        String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AdminTask {
+  id           String   @id @default(cuid())
+  task         String
+  assignedTeam String   @default("Sales Team")
+  assignedUser String?
+  priority     String   @default("Medium")
+  dueDate      String
+  status       String   @default("Pending")
+  notes        String?
+  createdBy    String?  @default("Admin")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  user          String
+  role          String   @default("ADMIN")
+  action        String
+  module        String
+  recordId      String?
+  previousValue String?
+  newValue      String?
+  createdAt     DateTime @default(now())
+}
+
+model DailyReport {
+  id           String   @id @default(cuid())
+  employeeName String
+  date         String
+  work         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
