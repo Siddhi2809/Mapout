@@ -75,7 +75,10 @@ export default function AdminProductionPage() {
 
   const handleComplete = (id: string) => {
     if (confirm('Complete this production batch? This will credit Finished Goods stock and consume BOM materials.')) {
-      completeProductionOrder(id);
+      const res = completeProductionOrder(id);
+      if (res) {
+        alert('✓ Production Batch Completed!\nRaw materials used have been deducted from inventory.\nUpdated stock balances synchronized to database.');
+      }
     }
   };
 

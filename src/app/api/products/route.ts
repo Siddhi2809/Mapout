@@ -128,30 +128,25 @@ export async function POST(request: Request) {
         },
       });
 
-      // Deduct used raw materials from raw material inventory
-      const prodStock = parseFloat(body.currentStock || body.openingStock || 0);
-      if (prodStock > 0) {
-        for (const rmq of rmQuantities) {
-          const totalUsed = Math.round(
-            (Number(rmq.quantityUsed || 1) * (1 + Number(rmq.wastagePercent || 0) / 100)) * prodStock
-          );
-          if (totalUsed > 0) {
-            const targetRM = await prisma.rawMaterial.findFirst({
-              where: {
-                OR: [
-                  ...(rmq.rawMaterialId ? [{ id: rmq.rawMaterialId }] : []),
-                  ...(rmq.sku ? [{ sku: rmq.sku }] : []),
-                  ...(rmq.rawMaterialName ? [{ name: rmq.rawMaterialName }] : []),
-                ],
-              },
+      // Deduct used raw materials from raw material inventory (deduct ONLY the used amount, e.g. 5 or 20)
+      for (const rmq of rmQuantities) {
+        const usedAmount = Number(rmq.quantityUsed || 0);
+        if (usedAmount > 0) {
+          const targetRM = await prisma.rawMaterial.findFirst({
+            where: {
+              OR: [
+                ...(rmq.rawMaterialId ? [{ id: rmq.rawMaterialId }] : []),
+                ...(rmq.sku ? [{ sku: rmq.sku }] : []),
+                ...(rmq.rawMaterialName ? [{ name: rmq.rawMaterialName }] : []),
+              ],
+            },
+          });
+          if (targetRM) {
+            const newRMStock = Math.max(0, targetRM.currentStock - usedAmount);
+            await prisma.rawMaterial.update({
+              where: { id: targetRM.id },
+              data: { currentStock: newRMStock },
             });
-            if (targetRM) {
-              const newRMStock = Math.max(0, targetRM.currentStock - totalUsed);
-              await prisma.rawMaterial.update({
-                where: { id: targetRM.id },
-                data: { currentStock: newRMStock },
-              });
-            }
           }
         }
       }
@@ -307,31 +302,74 @@ export async function PUT(request: Request) {
           });
         }
 
-        // Deduct raw material stock for this product's currentStock
-        const prodStock = parseFloat(
-          data.currentStock !== undefined ? data.currentStock : existing.currentStock
-        );
-        if (prodStock > 0) {
-          for (const rmq of rmQuantities) {
-            const totalUsed = Math.round(
-              (Number(rmq.quantityUsed || 1) * (1 + Number(rmq.wastagePercent || 0) / 100)) * prodStock
-            );
-            if (totalUsed > 0) {
-              const targetRM = await prisma.rawMaterial.findFirst({
-                where: {
-                  OR: [
-                    ...(rmq.rawMaterialId ? [{ id: rmq.rawMaterialId }] : []),
-                    ...(rmq.sku ? [{ sku: rmq.sku }] : []),
-                    ...(rmq.rawMaterialName ? [{ name: rmq.rawMaterialName }] : []),
-                  ],
-                },
+        // Adjust raw material stock based on difference (delta) in quantityUsed (only minus used amount)
+        let prevQuantities: any[] = [];
+        try {
+          prevQuantities = existing.rawMaterialQuantities ? JSON.parse(existing.rawMaterialQuantities) : [];
+        } catch {
+          prevQuantities = [];
+        }
+
+        for (const rmq of rmQuantities) {
+          const prevItem = Array.isArray(prevQuantities)
+            ? prevQuantities.find(
+                (p: any) =>
+                  (rmq.rawMaterialId && p.rawMaterialId === rmq.rawMaterialId) ||
+                  (rmq.sku && p.sku === rmq.sku) ||
+                  (rmq.rawMaterialName && p.rawMaterialName && p.rawMaterialName.toLowerCase() === rmq.rawMaterialName.toLowerCase())
+              )
+            : null;
+          const prevUsed = prevItem ? Number(prevItem.quantityUsed || 0) : 0;
+          const currentUsed = Number(rmq.quantityUsed || 0);
+          const delta = currentUsed - prevUsed;
+
+          if (delta !== 0) {
+            const targetRM = await prisma.rawMaterial.findFirst({
+              where: {
+                OR: [
+                  ...(rmq.rawMaterialId ? [{ id: rmq.rawMaterialId }] : []),
+                  ...(rmq.sku ? [{ sku: rmq.sku }] : []),
+                  ...(rmq.rawMaterialName ? [{ name: rmq.rawMaterialName }] : []),
+                ],
+              },
+            });
+            if (targetRM) {
+              const newRMStock = Math.max(0, targetRM.currentStock - delta);
+              await prisma.rawMaterial.update({
+                where: { id: targetRM.id },
+                data: { currentStock: newRMStock },
               });
-              if (targetRM) {
-                const newRMStock = Math.max(0, targetRM.currentStock - totalUsed);
-                await prisma.rawMaterial.update({
-                  where: { id: targetRM.id },
-                  data: { currentStock: newRMStock },
+            }
+          }
+        }
+
+        // Restore stock for any raw materials that were removed from the product
+        if (Array.isArray(prevQuantities)) {
+          for (const prevItem of prevQuantities) {
+            const stillPresent = rmQuantities.some(
+              (r: any) =>
+                (prevItem.rawMaterialId && r.rawMaterialId === prevItem.rawMaterialId) ||
+                (prevItem.sku && r.sku === prevItem.sku) ||
+                (prevItem.rawMaterialName && r.rawMaterialName && r.rawMaterialName.toLowerCase() === prevItem.rawMaterialName.toLowerCase())
+            );
+            if (!stillPresent) {
+              const restoreAmount = Number(prevItem.quantityUsed || 0);
+              if (restoreAmount > 0) {
+                const targetRM = await prisma.rawMaterial.findFirst({
+                  where: {
+                    OR: [
+                      ...(prevItem.rawMaterialId ? [{ id: prevItem.rawMaterialId }] : []),
+                      ...(prevItem.sku ? [{ sku: prevItem.sku }] : []),
+                      ...(prevItem.rawMaterialName ? [{ name: prevItem.rawMaterialName }] : []),
+                    ],
+                  },
                 });
+                if (targetRM) {
+                  await prisma.rawMaterial.update({
+                    where: { id: targetRM.id },
+                    data: { currentStock: targetRM.currentStock + restoreAmount },
+                  });
+                }
               }
             }
           }
@@ -375,6 +413,34 @@ export async function DELETE(request: Request) {
 
     if (!existing) {
       return NextResponse.json({ success: true, message: 'Product already deleted or not found' });
+    }
+
+    if (existing.rawMaterialQuantities) {
+      try {
+        const rmQuantities = JSON.parse(existing.rawMaterialQuantities);
+        if (Array.isArray(rmQuantities)) {
+          for (const rmq of rmQuantities) {
+            const usedAmount = Number(rmq.quantityUsed || 0);
+            if (usedAmount > 0) {
+              const targetRM = await prisma.rawMaterial.findFirst({
+                where: {
+                  OR: [
+                    ...(rmq.rawMaterialId ? [{ id: rmq.rawMaterialId }] : []),
+                    ...(rmq.sku ? [{ sku: rmq.sku }] : []),
+                    ...(rmq.rawMaterialName ? [{ name: rmq.rawMaterialName }] : []),
+                  ],
+                },
+              });
+              if (targetRM) {
+                await prisma.rawMaterial.update({
+                  where: { id: targetRM.id },
+                  data: { currentStock: targetRM.currentStock + usedAmount },
+                });
+              }
+            }
+          }
+        }
+      } catch {}
     }
 
     await prisma.productMaster.delete({

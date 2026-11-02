@@ -126,7 +126,7 @@ export default function AdminSalesReturnsPage() {
                   <td className="px-4 py-4 text-center">
                     <span
                       className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
-                        r.status === 'Approved' || r.status === 'Replaced'
+                        (r.status as string) === 'Approved' || r.status === 'Replaced'
                           ? 'bg-emerald-100 text-emerald-800'
                           : r.status === 'Rejected'
                           ? 'bg-rose-100 text-rose-800'

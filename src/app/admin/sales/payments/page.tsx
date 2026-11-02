@@ -20,7 +20,6 @@ import {
 
 export default function AdminSalesPaymentsPage() {
   const { customerPayments, salesOrders, customers, createCustomerPaymentFull } = useERP();
-
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
 

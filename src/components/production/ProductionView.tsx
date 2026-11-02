@@ -22,6 +22,8 @@ export const ProductionView: React.FC = () => {
     createProductionOrder,
     completeProductionOrder,
     finishedGoods,
+    products,
+    boms,
     rawMaterials,
   } = useERP();
 
@@ -29,7 +31,7 @@ export const ProductionView: React.FC = () => {
   const [formData, setFormData] = useState<Omit<ProductionOrder, 'id' | 'orderNumber'>>({
     finishedGoodId: finishedGoods[0]?.id || '',
     finishedGoodName: finishedGoods[0]?.name || '',
-    quantityToProduce: 100,
+    quantityToProduce: 5,
     status: 'PENDING',
     startDate: new Date().toISOString().split('T')[0],
     assignedEngineer: 'Ramesh Verma (Production Lead)',
@@ -58,7 +60,7 @@ export const ProductionView: React.FC = () => {
   const handleCompleteAssembly = (id: string) => {
     const success = completeProductionOrder(id);
     if (success) {
-      alert('Production Batch Completed! Raw materials deducted & Finished product stock updated successfully.');
+      alert('✓ Production Batch Completed!\nRaw materials used have been deducted from stock.\nUpdated current stock has been synchronized to the database.');
     }
   };
 
@@ -151,35 +153,95 @@ export const ProductionView: React.FC = () => {
                 </div>
               </div>
 
-              {/* BOM Materials Preview for Order */}
-              {targetGood && targetGood.bom.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-slate-200">
-                  <span className="text-[11px] font-semibold text-slate-700 mb-2 block">
-                    Required Material Stock Deduction for {order.quantityToProduce} Units:
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                    {targetGood.bom.map((b, i) => {
-                      const rm = rawMaterials.find((r) => r.id === b.rawMaterialId);
-                      const required = b.quantityRequired * order.quantityToProduce;
-                      const hasSufficient = rm ? rm.currentStock >= required : false;
+              {/* BOM Materials Preview for Order with Current Stock, Deduction, and Resulting Stock */}
+              {(() => {
+                const targetProd = products.find(
+                  (p) =>
+                    p.id === (order as any).productId ||
+                    p.id === order.finishedGoodId ||
+                    p.sku === (order as any).sku ||
+                    p.name.toLowerCase() === (order.finishedGoodName || '').toLowerCase()
+                );
 
-                      return (
-                        <div
-                          key={i}
-                          className={`p-2 rounded-lg border ${
-                            hasSufficient ? 'bg-slate-50 border-slate-200' : 'bg-rose-50 border-rose-300 text-rose-900'
-                          }`}
-                        >
-                          <span className="text-slate-900 font-semibold block truncate">{rm?.name}</span>
-                          <span className="text-slate-600 text-[10px] font-medium">
-                            Req: <strong className="text-slate-900">{required}</strong> {rm?.unit} (Avail: {rm?.currentStock})
-                          </span>
-                        </div>
-                      );
-                    })}
+                let components: Array<{ rawMaterialId: string; rawMaterialName: string; quantityUsed: number; unit?: string }> = [];
+                if (targetProd?.rawMaterialQuantities && Array.isArray(targetProd.rawMaterialQuantities) && targetProd.rawMaterialQuantities.length > 0) {
+                  components = targetProd.rawMaterialQuantities.map((q) => ({
+                    rawMaterialId: q.rawMaterialId,
+                    rawMaterialName: q.rawMaterialName,
+                    quantityUsed: Number(q.quantityUsed || 1),
+                    unit: q.unit || 'PCS',
+                  }));
+                } else if (targetGood && targetGood.bom && Array.isArray(targetGood.bom) && targetGood.bom.length > 0) {
+                  components = targetGood.bom.map((b) => {
+                    const r = rawMaterials.find((rm) => rm.id === b.rawMaterialId);
+                    return {
+                      rawMaterialId: b.rawMaterialId,
+                      rawMaterialName: r?.name || b.rawMaterialId,
+                      quantityUsed: Number(b.quantityRequired || 1),
+                      unit: r?.unit || 'PCS',
+                    };
+                  });
+                } else {
+                  const bom = boms.find((b) => b.productId === targetProd?.id || b.productId === targetGood?.id || b.id === (order as any).bomId);
+                  if (bom && Array.isArray(bom.items) && bom.items.length > 0) {
+                    components = bom.items.map((bi) => ({
+                      rawMaterialId: bi.rawMaterialId,
+                      rawMaterialName: bi.rawMaterialName,
+                      quantityUsed: Number(bi.quantity || 1),
+                      unit: bi.unit || 'PCS',
+                    }));
+                  }
+                }
+
+                if (components.length === 0) return null;
+
+                return (
+                  <div className="mt-4 pt-3 border-t border-slate-200">
+                    <span className="text-[11px] font-semibold text-slate-700 mb-2 block">
+                      Raw Component Consumption & Live Stock Balances for {order.quantityToProduce} Units:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-[11px]">
+                      {components.map((c, i) => {
+                        const rm = rawMaterials.find(
+                          (r) => r.id === c.rawMaterialId || r.name.toLowerCase() === c.rawMaterialName.toLowerCase()
+                        );
+                        const required = c.quantityUsed * order.quantityToProduce;
+                        const curStock = rm ? rm.currentStock : 0;
+                        const hasSufficient = curStock >= required;
+                        const resultingStock = isCompleted ? curStock : Math.max(0, curStock - required);
+
+                        return (
+                          <div
+                            key={i}
+                            className={`p-2.5 rounded-xl border ${
+                              hasSufficient ? 'bg-slate-50 border-slate-200' : 'bg-rose-50 border-rose-300 text-rose-900'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-slate-900 font-bold truncate">{c.rawMaterialName}</span>
+                              <span className="font-mono text-[10px] text-blue-600 font-semibold">{rm?.sku || 'RM-SKU'}</span>
+                            </div>
+                            <div className="space-y-0.5 text-[10px]">
+                              <div className="flex justify-between text-slate-600">
+                                <span>Current Stock:</span>
+                                <strong className="text-slate-900">{curStock} {c.unit}</strong>
+                              </div>
+                              <div className="flex justify-between text-rose-600 font-semibold">
+                                <span>Used in Batch:</span>
+                                <strong>-{required} {c.unit}</strong>
+                              </div>
+                              <div className="flex justify-between text-emerald-700 font-bold border-t border-slate-200 pt-0.5">
+                                <span>Updated Stock:</span>
+                                <strong>{resultingStock} {c.unit} {isCompleted ? '(Applied)' : ''}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           );
         })}

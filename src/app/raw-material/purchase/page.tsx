@@ -36,6 +36,7 @@ export default function PurchasePage() {
     rawMaterials,
     createPurchaseOrder,
     updatePurchaseOrderStatus,
+    receivePurchaseOrder,
     updatePurchaseRequestStatus,
     generateEntityCode,
     refreshRawMaterialsFromDB,
@@ -102,6 +103,8 @@ export default function PurchasePage() {
       const rawMaterialName = rm ? rm.name : 'Selected Material';
       const sku = rm ? rm.sku : 'RM-CODE';
       const unit = rm ? rm.unit : 'PCS';
+      const currentStock = rm ? rm.currentStock : 0;
+      const updatedStock = currentStock + (Number(item.quantity) || 0);
 
       const lineSub = item.quantity * item.unitCost;
       const lineDisc = lineSub * (item.discountPercent / 100);
@@ -113,6 +116,8 @@ export default function PurchasePage() {
         rawMaterialName,
         sku,
         unit,
+        currentStock,
+        updatedStock,
         lineSub,
         lineDisc,
         lineTax,
@@ -480,9 +485,22 @@ export default function PurchasePage() {
                         <td className="py-3 px-4">
                           <select
                             value={po.status}
-                            onChange={(e) =>
-                              updatePurchaseOrderStatus(po.id, e.target.value as PurchaseOrder['status'])
-                            }
+                            onChange={async (e) => {
+                              const newStatus = e.target.value as PurchaseOrder['status'];
+                              updatePurchaseOrderStatus(po.id, newStatus);
+                              if (newStatus === 'Received') {
+                                const summary = po.items
+                                  .map((i) => {
+                                    const liveRm = rawMaterials.find((r) => r.id === i.rawMaterialId || r.sku === i.sku);
+                                    const prev = liveRm ? liveRm.currentStock : 0;
+                                    return `${i.rawMaterialName}: ${prev} → ${prev + i.quantity} ${i.unit || 'PCS'}`;
+                                  })
+                                  .join(', ');
+                                showToast(`✓ PO ${po.poNumber} Received! Updated Stock: ${summary}`);
+                              } else {
+                                showToast(`PO ${po.poNumber} status updated to ${newStatus}`);
+                              }
+                            }}
                             className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-800"
                           >
                             <option value="Draft">Draft</option>
@@ -724,10 +742,18 @@ export default function PurchasePage() {
                               >
                                 {rawMaterials.map((rm) => (
                                   <option key={rm.id} value={rm.id}>
-                                    {rm.name} ({rm.sku})
+                                    {rm.name} ({rm.sku}) — Stock: {rm.currentStock} {rm.unit}
                                   </option>
                                 ))}
                               </select>
+                              <div className="flex items-center gap-2 mt-1 text-[10px]">
+                                <span className="text-slate-500 font-medium">
+                                  Current Stock: <strong className="text-slate-800">{item.currentStock} {item.unit}</strong>
+                                </span>
+                                <span className="text-emerald-700 font-bold">
+                                  → Projected Stock: {item.updatedStock} {item.unit} (+{item.quantity})
+                                </span>
+                              </div>
                             </td>
                             <td className="py-2.5 px-3">
                               <div className="flex items-center gap-1">
@@ -916,6 +942,31 @@ export default function PurchasePage() {
                   </div>
 
                   <div className="flex items-center gap-3">
+                    {viewingPO.status !== 'Received' && (
+                      <button
+                        onClick={async () => {
+                          const res = await receivePurchaseOrder(viewingPO.id);
+                          if (res?.success) {
+                            const summary = viewingPO.items
+                              .map((i) => {
+                                const liveRm = rawMaterials.find((r) => r.id === i.rawMaterialId || r.sku === i.sku);
+                                const prev = liveRm ? liveRm.currentStock : 0;
+                                return `${i.rawMaterialName}: ${prev} → ${prev + i.quantity} ${i.unit || 'PCS'}`;
+                              })
+                              .join(', ');
+                            showToast(`✓ PO ${viewingPO.poNumber} Received! Updated Stock: ${summary}`);
+                            setViewingPO({
+                              ...viewingPO,
+                              status: 'Received',
+                              receivedQuantity: viewingPO.items.reduce((a, i) => a + i.quantity, 0),
+                            });
+                          }
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-white" /> Receive & Add to Stock
+                      </button>
+                    )}
                     <button
                       onClick={() => window.print()}
                       className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-xs flex items-center gap-2 transition"
@@ -1036,43 +1087,46 @@ export default function PurchasePage() {
                         <thead className="bg-slate-100/80 text-slate-600 font-semibold border-b border-slate-200">
                           <tr>
                             <th className="py-2.5 px-3">#</th>
-                            <th className="py-2.5 px-3">Material Name</th>
-                            <th className="py-2.5 px-3">Material Code</th>
+                            <th className="py-2.5 px-3">Material Name & Code</th>
+                            <th className="py-2.5 px-3 text-center">Current DB Stock</th>
                             <th className="py-2.5 px-3 text-center">Ordered Qty</th>
+                            <th className="py-2.5 px-3 text-center">Updated Stock</th>
                             <th className="py-2.5 px-3 text-center">Received Qty</th>
-                            <th className="py-2.5 px-3 text-center">Pending Qty</th>
                             <th className="py-2.5 px-3 text-right">Unit Rate (₹)</th>
-                            <th className="py-2.5 px-3 text-center">GST %</th>
                             <th className="py-2.5 px-3 text-right">Total Amount</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {viewingPO.items.map((item, idx) => {
                             const recQty = item.receivedQuantity || 0;
-                            const pendingQty = Math.max(0, item.quantity - recQty);
+                            const liveRm = rawMaterials.find(
+                              (r) => r.id === item.rawMaterialId || r.sku === item.sku || r.name.toLowerCase() === item.rawMaterialName.toLowerCase()
+                            );
+                            const currentStock = liveRm ? liveRm.currentStock : 0;
+                            const isAlreadyReceived = viewingPO.status === 'Received';
+                            const updatedStock = isAlreadyReceived ? currentStock : currentStock + item.quantity;
+
                             return (
                               <tr key={idx} className="hover:bg-slate-50">
                                 <td className="py-2.5 px-3 text-slate-500 font-mono">{idx + 1}</td>
-                                <td className="py-2.5 px-3 font-semibold text-slate-900">
-                                  {item.rawMaterialName}
+                                <td className="py-2.5 px-3">
+                                  <div className="font-semibold text-slate-900">{item.rawMaterialName}</div>
+                                  <div className="font-mono text-blue-600 text-[10px] font-bold">{item.sku}</div>
                                 </td>
-                                <td className="py-2.5 px-3 font-mono text-blue-600 font-bold">
-                                  {item.sku}
+                                <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-700">
+                                  {currentStock} {item.unit || 'PCS'}
                                 </td>
-                                <td className="py-2.5 px-3 text-center font-bold text-slate-800">
-                                  {item.quantity} {item.unit || 'PCS'}
+                                <td className="py-2.5 px-3 text-center font-bold text-blue-700 font-mono">
+                                  +{item.quantity} {item.unit || 'PCS'}
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-700">
+                                  {updatedStock} {item.unit || 'PCS'} {isAlreadyReceived ? '(In Stock)' : '(Projected)'}
                                 </td>
                                 <td className="py-2.5 px-3 text-center font-bold text-emerald-600 font-mono">
                                   {recQty} {item.unit || 'PCS'}
                                 </td>
-                                <td className="py-2.5 px-3 text-center font-bold text-amber-600 font-mono">
-                                  {pendingQty} {item.unit || 'PCS'}
-                                </td>
                                 <td className="py-2.5 px-3 text-right font-mono text-slate-700">
                                   ₹{item.unitCost.toLocaleString('en-IN')}
-                                </td>
-                                <td className="py-2.5 px-3 text-center font-mono text-slate-500">
-                                  {item.gstPercent || 18}%
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-mono">
                                   ₹{item.totalCost.toLocaleString('en-IN')}

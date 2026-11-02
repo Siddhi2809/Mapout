@@ -149,6 +149,57 @@ export async function PUT(request: Request) {
       });
     }
 
+    // 2. Handle Batch Additions (Used when raw materials are purchased/received)
+    if (Array.isArray(body.additions)) {
+      const results: any[] = [];
+      for (const item of body.additions) {
+        const itemQty = parseFloat(item.quantity || 0);
+        if (itemQty <= 0) continue;
+
+        const targetId = item.rawMaterialId || item.id;
+        const targetSku = item.sku;
+
+        const rm = await prisma.rawMaterial.findFirst({
+          where: {
+            OR: [
+              ...(targetId ? [{ id: targetId }] : []),
+              ...(targetId ? [{ sku: targetId }] : []),
+              ...(targetSku ? [{ sku: targetSku }] : []),
+              ...(item.rawMaterialName ? [{ name: item.rawMaterialName }] : []),
+            ],
+          },
+        });
+
+        if (rm) {
+          const prevStock = rm.currentStock;
+          const newStock = prevStock + itemQty;
+          const updateData: any = { currentStock: newStock };
+          if (item.unitCost && parseFloat(item.unitCost) > 0) {
+            updateData.unitCost = parseFloat(item.unitCost);
+          }
+          const updatedRm = await prisma.rawMaterial.update({
+            where: { id: rm.id },
+            data: updateData,
+          });
+          results.push({
+            id: updatedRm.id,
+            name: updatedRm.name,
+            sku: updatedRm.sku,
+            unit: updatedRm.unit,
+            added: itemQty,
+            previousStock: prevStock,
+            updatedStock: newStock,
+          });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Successfully added purchased raw materials to stock.`,
+        data: results,
+      });
+    }
+
     const { id, sku, materialCode, ...data } = body;
     if (!id && !sku && !materialCode) {
       return NextResponse.json({ success: false, message: 'ID or SKU is required for update' }, { status: 400 });
@@ -179,6 +230,26 @@ export async function PUT(request: Request) {
       const updated = await prisma.rawMaterial.update({
         where: { id: existing.id },
         data: { currentStock: newStock },
+      });
+      return NextResponse.json({
+        success: true,
+        data: updated,
+        previousStock: prevStock,
+        updatedStock: newStock,
+      });
+    }
+
+    // Direct single addition (on purchase / stock receipt)
+    if (body.addQuantity !== undefined) {
+      const addQty = parseFloat(body.addQuantity || 0);
+      const prevStock = existing.currentStock;
+      const newStock = prevStock + addQty;
+      const updated = await prisma.rawMaterial.update({
+        where: { id: existing.id },
+        data: {
+          currentStock: newStock,
+          ...(body.unitCost !== undefined && { unitCost: parseFloat(body.unitCost) }),
+        },
       });
       return NextResponse.json({
         success: true,

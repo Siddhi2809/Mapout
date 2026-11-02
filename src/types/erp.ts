@@ -806,6 +806,7 @@ export interface SalesInvoice {
 }
 
 export interface DispatchItem {
+  id?: string;
   itemType?: 'PRODUCT' | 'RAW_MATERIAL';
   rawMaterialId?: string;
   productId: string;
@@ -833,7 +834,7 @@ export interface SalesDispatch {
   transporter: string;
   vehicleNumber?: string;
   trackingNumber: string;
-  deliveryStatus: 'Pending' | 'Ready' | 'Dispatched' | 'In Transit' | 'Delivered' | 'Cancelled';
+  deliveryStatus: 'Pending' | 'Ready' | 'READY_FOR_DISPATCH' | 'Dispatched' | 'In Transit' | 'Delivered' | 'Cancelled';
   remarks?: string;
   createdBy?: string;
 }
@@ -999,6 +1000,7 @@ export interface ProductReturn {
     | 'Requested'
     | 'Received'
     | 'Under Inspection'
+    | 'Approved'
     | 'Repair Required'
     | 'Replacement Required'
     | 'Repaired'

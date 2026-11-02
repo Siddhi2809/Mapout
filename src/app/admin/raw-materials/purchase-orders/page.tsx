@@ -24,6 +24,7 @@ export default function AdminPurchaseOrdersPage() {
     rawMaterials,
     createPurchaseOrder,
     updatePurchaseOrderStatus,
+    receivePurchaseOrder,
     refreshRawMaterialsFromDB,
   } = useERP();
 
@@ -217,12 +218,24 @@ export default function AdminPurchaseOrdersPage() {
                   </td>
 
                   <td className="px-5 py-4 text-right">
-                    <button
-                      onClick={() => setSelectedPO(po)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition"
-                    >
-                      <Eye className="w-3.5 h-3.5" /> Details
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {po.status !== 'Received' && (
+                        <button
+                          onClick={async () => {
+                            await receivePurchaseOrder(po.id);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-[11px] transition"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Receive
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSelectedPO(po)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Details
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -254,17 +267,40 @@ export default function AdminPurchaseOrdersPage() {
 
             <div className="p-6 space-y-4 text-xs">
               <div className="space-y-2">
-                <div className="font-bold text-slate-800">Materials In This PO:</div>
+                <div className="font-bold text-slate-800">Materials In This PO & Inventory Impact:</div>
                 <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
-                  {selectedPO.items?.map((item) => (
-                    <div key={item.id} className="p-3 flex justify-between items-center bg-slate-50/40">
-                      <div>
-                        <div className="font-bold text-slate-800">{item.rawMaterialName}</div>
-                        <div className="text-[10px] text-slate-400">Qty: {item.quantity} · Rate: ₹{item.unitCost}</div>
+                  {selectedPO.items?.map((item, idx) => {
+                    const liveRm = rawMaterials.find(
+                      (r) =>
+                        r.id === item.rawMaterialId ||
+                        r.sku === item.sku ||
+                        r.name.toLowerCase() === item.rawMaterialName.toLowerCase()
+                    );
+                    const curStock = liveRm ? liveRm.currentStock : 0;
+                    const isRec = selectedPO.status === 'Received';
+                    const resulting = isRec ? curStock : curStock + item.quantity;
+
+                    return (
+                      <div key={item.rawMaterialId || idx} className="p-3 bg-slate-50/40 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <span className="font-bold text-slate-800">{item.rawMaterialName}</span>
+                            <span className="ml-2 font-mono text-[10px] text-blue-600 font-bold">{item.sku}</span>
+                          </div>
+                          <div className="font-bold text-slate-900">₹{(item.totalCost || 0).toLocaleString('en-IN')}</div>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px]">
+                          <span className="text-slate-500">
+                            Current Stock: <strong className="text-slate-800">{curStock} {item.unit || 'PCS'}</strong>
+                          </span>
+                          <span className="text-blue-700 font-bold">PO Qty: +{item.quantity}</span>
+                          <span className="text-emerald-700 font-bold">
+                            → Resulting: {resulting} {item.unit || 'PCS'} {isRec ? '(In Stock)' : '(Projected)'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="font-bold text-slate-900">₹{(item.totalCost || 0).toLocaleString('en-IN')}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -276,7 +312,24 @@ export default function AdminPurchaseOrdersPage() {
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end">
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div>
+                {selectedPO.status !== 'Received' ? (
+                  <button
+                    onClick={async () => {
+                      await receivePurchaseOrder(selectedPO.id);
+                      setSelectedPO({ ...selectedPO, status: 'Received' });
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-white" /> Mark Received & Add to Stock
+                  </button>
+                ) : (
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Stock Added & Received in Database
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => setSelectedPO(null)}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
@@ -348,6 +401,18 @@ export default function AdminPurchaseOrdersPage() {
                     </option>
                   ))}
                 </select>
+                {poForm.rawMaterialId && (() => {
+                  const rm = rawMaterials.find((m) => m.id === poForm.rawMaterialId);
+                  const cur = rm ? rm.currentStock : 0;
+                  const add = parseInt(poForm.quantity || '0', 10);
+                  return (
+                    <div className="mt-1 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 flex items-center justify-between font-medium">
+                      <span>Current Stock: <strong>{cur} {rm?.unit || 'PCS'}</strong></span>
+                      <span>Purchase: <strong>+{add}</strong></span>
+                      <span className="font-bold text-emerald-900">Projected: {cur + add} {rm?.unit || 'PCS'}</span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

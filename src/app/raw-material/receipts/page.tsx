@@ -333,68 +333,78 @@ export default function MaterialReceiptsPage() {
                         <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                           <tr>
                             <th className="py-2.5 px-3">Material</th>
-                            <th className="py-2.5 px-3">Ordered Qty</th>
-                            <th className="py-2.5 px-3">Prev. Received</th>
-                            <th className="py-2.5 px-3 text-amber-800 font-bold">Remaining Qty</th>
+                            <th className="py-2.5 px-3 text-center">Current DB Stock</th>
+                            <th className="py-2.5 px-3 text-amber-800 font-bold">Remaining PO</th>
                             <th className="py-2.5 px-3">Received Qty</th>
                             <th className="py-2.5 px-3 text-emerald-800 font-bold">Accepted Qty</th>
+                            <th className="py-2.5 px-3 text-center text-emerald-700 font-bold">Updated Stock</th>
                             <th className="py-2.5 px-3 text-rose-800 font-bold">Rejected Qty</th>
                             <th className="py-2.5 px-3">Rejection Reason</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {receiptItems.map((item, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50">
-                              <td className="py-2.5 px-3">
-                                <div className="font-bold text-slate-900">{item.rawMaterialName}</div>
-                                <div className="text-[10px] text-blue-700 font-mono font-semibold">{item.sku}</div>
-                              </td>
-                              <td className="py-2.5 px-3 font-mono text-slate-600">
-                                {item.orderedQuantity}
-                              </td>
-                              <td className="py-2.5 px-3 font-mono text-slate-600">
-                                {item.previouslyReceived}
-                              </td>
-                              <td className="py-2.5 px-3 font-mono font-bold text-amber-800">
-                                {item.remainingQuantity}
-                              </td>
-                              <td className="py-2.5 px-3">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={item.receivedQuantity}
-                                  onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    const updated = [...receiptItems];
-                                    updated[idx].receivedQuantity = val;
-                                    updated[idx].acceptedQuantity = val - updated[idx].rejectedQuantity;
-                                    setReceiptItems(updated);
-                                  }}
-                                  className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-900 font-bold focus:outline-none"
-                                />
-                              </td>
-                              <td className="py-2.5 px-3">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={item.receivedQuantity}
-                                  value={item.acceptedQuantity}
-                                  onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    const updated = [...receiptItems];
-                                    updated[idx].acceptedQuantity = val;
-                                    updated[idx].rejectedQuantity = Math.max(
-                                      0,
-                                      updated[idx].receivedQuantity - val
-                                    );
-                                    setReceiptItems(updated);
-                                  }}
-                                  className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-emerald-700 font-bold focus:outline-none"
-                                />
-                              </td>
-                              <td className="py-2.5 px-3 font-bold text-rose-700">
-                                {item.rejectedQuantity}
-                              </td>
+                          {receiptItems.map((item, idx) => {
+                            const liveRm = rawMaterials.find(
+                              (r) =>
+                                r.id === item.rawMaterialId ||
+                                r.sku === item.sku ||
+                                r.name.toLowerCase() === item.rawMaterialName.toLowerCase()
+                            );
+                            const curStock = liveRm ? liveRm.currentStock : 0;
+                            const updatedStock = curStock + (item.acceptedQuantity || 0);
+
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="py-2.5 px-3">
+                                  <div className="font-bold text-slate-900">{item.rawMaterialName}</div>
+                                  <div className="text-[10px] text-blue-700 font-mono font-semibold">{item.sku}</div>
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-700">
+                                  {curStock} {item.unit || 'PCS'}
+                                </td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-amber-800">
+                                  {item.remainingQuantity}
+                                </td>
+                                <td className="py-2.5 px-3">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={item.receivedQuantity}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      const updated = [...receiptItems];
+                                      updated[idx].receivedQuantity = val;
+                                      updated[idx].acceptedQuantity = val - updated[idx].rejectedQuantity;
+                                      setReceiptItems(updated);
+                                    }}
+                                    className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-900 font-bold focus:outline-none"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-3">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={item.receivedQuantity}
+                                    value={item.acceptedQuantity}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      const updated = [...receiptItems];
+                                      updated[idx].acceptedQuantity = val;
+                                      updated[idx].rejectedQuantity = Math.max(
+                                        0,
+                                        updated[idx].receivedQuantity - val
+                                      );
+                                      setReceiptItems(updated);
+                                    }}
+                                    className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-emerald-700 font-bold focus:outline-none"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-700">
+                                  {updatedStock} {item.unit || 'PCS'} (+{item.acceptedQuantity})
+                                </td>
+                                <td className="py-2.5 px-3 font-bold text-rose-700">
+                                  {item.rejectedQuantity}
+                                </td>
                               <td className="py-2.5 px-3">
                                 <input
                                   type="text"
@@ -410,7 +420,8 @@ export default function MaterialReceiptsPage() {
                                 />
                               </td>
                             </tr>
-                          ))}
+                          );
+                        })}
                         </tbody>
                       </table>
                     </div>

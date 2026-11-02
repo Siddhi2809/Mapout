@@ -48,6 +48,7 @@ import {
   MapPin,
   Globe,
   Phone,
+  Trash2,
 } from 'lucide-react';
 
 const KEY_PROFILE_FIELDS: { key: keyof Lead; label: string; placeholder: string; type?: string }[] = [
@@ -96,6 +97,8 @@ export default function LeadsPage() {
     createLeadFull,
     updateLeadFull,
     convertLeadToCustomer,
+    deleteLead,
+    clearAllLeads,
     createFollowUpFull,
     updateFollowUpStatusFull,
     activeRole,
@@ -105,6 +108,9 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sourceFilter, setSourceFilter] = useState('ALL');
   const [completenessFilter, setCompletenessFilter] = useState('ALL');
+  const [datePreset, setDatePreset] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7' | 'THIS_MONTH' | 'CUSTOM'>('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Modal States
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -138,6 +144,11 @@ export default function LeadsPage() {
 
   // Import History Modal
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+
+  // Clear All & Single Delete Confirmation Modals
+  const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // File Input Ref
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -200,7 +211,42 @@ export default function LeadsPage() {
       matchCompleteness = getLeadProfileAudit(l).missing.length > 0;
     }
 
-    return matchSearch && matchStatus && matchSource && matchCompleteness;
+    // Date-wise Filter
+    let matchDate = true;
+    const leadDate = l.createdAt ? l.createdAt.split('T')[0] : '';
+    if (datePreset !== 'ALL' || dateFrom || dateTo) {
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      if (datePreset === 'TODAY') {
+        matchDate = leadDate === todayStr;
+      } else if (datePreset === 'YESTERDAY') {
+        const yest = new Date(now);
+        yest.setDate(yest.getDate() - 1);
+        const yestStr = yest.toISOString().split('T')[0];
+        matchDate = leadDate === yestStr;
+      } else if (datePreset === 'LAST_7') {
+        const d7 = new Date(now);
+        d7.setDate(d7.getDate() - 7);
+        const d7Str = d7.toISOString().split('T')[0];
+        matchDate = leadDate >= d7Str && leadDate <= todayStr;
+      } else if (datePreset === 'THIS_MONTH') {
+        const ym = todayStr.substring(0, 7);
+        matchDate = leadDate.startsWith(ym);
+      } else if (datePreset === 'CUSTOM') {
+        if (dateFrom && dateTo) {
+          matchDate = leadDate >= dateFrom && leadDate <= dateTo;
+        } else if (dateFrom) {
+          matchDate = leadDate >= dateFrom;
+        } else if (dateTo) {
+          matchDate = leadDate <= dateTo;
+        }
+      }
+      if (dateFrom && leadDate && leadDate < dateFrom) matchDate = false;
+      if (dateTo && leadDate && leadDate > dateTo) matchDate = false;
+    }
+
+    return matchSearch && matchStatus && matchSource && matchCompleteness && matchDate;
   });
 
   // Open Create Lead Modal
@@ -267,11 +313,13 @@ export default function LeadsPage() {
   };
 
   // Save Completed Profile
-  const handleSaveCompletedProfile = (e: React.FormEvent) => {
+  const handleSaveCompletedProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLeadForProfile) return;
 
-    const updates: Partial<Lead> = {};
+    const updates: Partial<Lead> = {
+      leadNumber: selectedLeadForProfile.leadNumber,
+    };
     KEY_PROFILE_FIELDS.forEach((f) => {
       const val = profileFormData[f.key];
       if (val !== undefined) {
@@ -279,13 +327,17 @@ export default function LeadsPage() {
       }
     });
 
-    updateLeadFull(selectedLeadForProfile.id, updates);
-    showToast(`Lead "${profileFormData.leadName || selectedLeadForProfile.leadName}" profile updated successfully.`);
+    try {
+      await updateLeadFull(selectedLeadForProfile.id, updates);
+      showToast(`Lead "${profileFormData.leadName || selectedLeadForProfile.leadName}" profile updated and saved to database.`);
+    } catch {
+      showToast(`Profile updated.`);
+    }
     setIsProfileModalOpen(false);
   };
 
   // Save Lead (Add / Edit)
-  const handleSaveLead = (e: React.FormEvent) => {
+  const handleSaveLead = async (e: React.FormEvent) => {
     e.preventDefault();
     const prodObj = products.find((p) => p.id === formProductId);
     const val = parseFloat(formExpectedValue) || 0;
@@ -316,11 +368,14 @@ export default function LeadsPage() {
     };
 
     if (editingLead) {
-      updateLeadFull(editingLead.id, leadPayload);
-      showToast(`Lead "${formLeadName}" updated successfully.`);
+      await updateLeadFull(editingLead.id, {
+        leadNumber: editingLead.leadNumber,
+        ...leadPayload,
+      });
+      showToast(`Lead "${formLeadName}" updated and saved to database.`);
     } else {
-      createLeadFull(leadPayload);
-      showToast(`New Lead "${formLeadName}" created successfully.`);
+      await createLeadFull(leadPayload);
+      showToast(`New Lead "${formLeadName}" created and saved to database.`);
     }
 
     setIsLeadModalOpen(false);
@@ -367,6 +422,43 @@ export default function LeadsPage() {
       } else {
         alert(res.message);
       }
+    }
+  };
+
+  // Delete Single Lead Handler
+  const handleDeleteLeadConfirm = async () => {
+    if (!leadToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteLead(leadToDelete.id);
+      if (res.success) {
+        showToast('Lead deleted successfully from database.');
+      } else {
+        showToast(res.message || 'Failed to delete lead.');
+      }
+    } catch {
+      showToast('Error deleting lead.');
+    } finally {
+      setIsDeleting(false);
+      setLeadToDelete(null);
+    }
+  };
+
+  // Clear All Leads Handler
+  const handleClearAllLeadsConfirm = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await clearAllLeads();
+      if (res.success) {
+        showToast('All CRM leads and import history cleared from database.');
+      } else {
+        showToast(res.message || 'Failed to clear leads.');
+      }
+    } catch {
+      showToast('Error clearing leads.');
+    } finally {
+      setIsDeleting(false);
+      setIsClearAllModalOpen(false);
     }
   };
 
@@ -471,7 +563,7 @@ export default function LeadsPage() {
   };
 
   const handleQuickStatusChange = (l: Lead, newStatus: LeadStatus) => {
-    updateLeadFull(l.id, { status: newStatus });
+    updateLeadFull(l.id, { leadNumber: l.leadNumber, status: newStatus });
     if (newStatus === 'Follow-up' || newStatus === 'Contacted') {
       showToast(`✓ Lead "${l.companyName || l.leadName}" updated to ${newStatus} — automatically added to Follow-ups!`);
     } else if (newStatus === 'Send Quotation' || newStatus === 'Quotation Sent') {
@@ -543,6 +635,17 @@ export default function LeadsPage() {
                 </span>
               )}
             </button>
+
+            {/* Clear All Leads Button */}
+            {leads.length > 0 && (
+              <button
+                onClick={() => setIsClearAllModalOpen(true)}
+                title="Reduce / clear all leads from database"
+                className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" /> Clear All Data
+              </button>
+            )}
 
             {/* Import Leads Button */}
             <button
@@ -621,65 +724,170 @@ export default function LeadsPage() {
         </div>
 
         {/* Filter Bar */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search Lead, Company, Contact, Phone, City..."
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
-              <Filter className="w-3.5 h-3.5 text-slate-500" /> Filters:
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+          <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search Lead, Company, Contact, Phone, City..."
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+              />
             </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="New">New</option>
-              <option value="Contacted">Contacted</option>
-              <option value="Interested">Interested</option>
-              <option value="Follow-up">Follow-up</option>
-              <option value="Send Quotation">Send Quotation</option>
-              <option value="Quotation Sent">Quotation Sent</option>
-              <option value="Converted">Converted</option>
-              <option value="Lost">Lost</option>
-            </select>
+            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
+                <Filter className="w-3.5 h-3.5 text-slate-500" /> Filters:
+              </div>
 
-            <select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
-            >
-              <option value="ALL">All Sources</option>
-              <option value="Website">Website</option>
-              <option value="Referral">Referral</option>
-              <option value="Social Media">Social Media</option>
-              <option value="Advertisement">Advertisement</option>
-              <option value="Phone">Phone</option>
-              <option value="Email">Email</option>
-              <option value="Walk-in">Walk-in</option>
-              <option value="Other">Other</option>
-            </select>
+              {/* Date Filter Preset */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5">
+                <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <select
+                  value={datePreset}
+                  onChange={(e) => {
+                    const val = e.target.value as any;
+                    setDatePreset(val);
+                    if (val !== 'CUSTOM') {
+                      setDateFrom('');
+                      setDateTo('');
+                    }
+                  }}
+                  className="bg-transparent text-xs text-slate-800 font-medium focus:outline-none cursor-pointer"
+                  title="Filter leads by date"
+                >
+                  <option value="ALL">All Dates</option>
+                  <option value="TODAY">Created Today</option>
+                  <option value="YESTERDAY">Created Yesterday</option>
+                  <option value="LAST_7">Last 7 Days</option>
+                  <option value="THIS_MONTH">This Month</option>
+                  <option value="CUSTOM">Custom Date Range...</option>
+                </select>
+              </div>
 
-            <select
-              value={completenessFilter}
-              onChange={(e) => setCompletenessFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
-            >
-              <option value="ALL">All Profiles</option>
-              <option value="INCOMPLETE">⚠️ Incomplete Profile</option>
-              <option value="COMPLETE">✓ 100% Complete Profile</option>
-            </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="New">New</option>
+                <option value="Contacted">Contacted</option>
+                <option value="Interested">Interested</option>
+                <option value="Follow-up">Follow-up</option>
+                <option value="Send Quotation">Send Quotation</option>
+                <option value="Quotation Sent">Quotation Sent</option>
+                <option value="Converted">Converted</option>
+                <option value="Lost">Lost</option>
+              </select>
+
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
+              >
+                <option value="ALL">All Sources</option>
+                <option value="Website">Website</option>
+                <option value="Referral">Referral</option>
+                <option value="Social Media">Social Media</option>
+                <option value="Advertisement">Advertisement</option>
+                <option value="Phone">Phone</option>
+                <option value="Email">Email</option>
+                <option value="Walk-in">Walk-in</option>
+                <option value="Other">Other</option>
+              </select>
+
+              <select
+                value={completenessFilter}
+                onChange={(e) => setCompletenessFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
+              >
+                <option value="ALL">All Profiles</option>
+                <option value="INCOMPLETE">⚠️ Incomplete Profile</option>
+                <option value="COMPLETE">✓ 100% Complete Profile</option>
+              </select>
+            </div>
           </div>
+
+          {/* Custom Date Range Picker Row */}
+          {(datePreset === 'CUSTOM' || dateFrom || dateTo) && (
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
+              <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-blue-600" /> Filter Date Range:
+              </span>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-slate-600 font-medium">From:</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setDatePreset('CUSTOM');
+                  }}
+                  className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:bg-white focus:border-blue-600"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-slate-600 font-medium">To:</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setDatePreset('CUSTOM');
+                  }}
+                  className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:bg-white focus:border-blue-600"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setDatePreset('ALL');
+                  setDateFrom('');
+                  setDateTo('');
+                }}
+                className="px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-[11px] font-semibold flex items-center gap-1 transition"
+              >
+                <X className="w-3 h-3" /> Reset Date
+              </button>
+            </div>
+          )}
+
+          {/* Active Filter Indicators Bar */}
+          {(searchQuery || statusFilter !== 'ALL' || sourceFilter !== 'ALL' || completenessFilter !== 'ALL' || datePreset !== 'ALL' || dateFrom || dateTo) && (
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-slate-600">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-800">
+                  Showing {filteredLeads.length} of {leads.length} leads
+                </span>
+                {datePreset !== 'ALL' && (
+                  <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                    Date: {datePreset === 'CUSTOM' ? `${dateFrom || 'start'} → ${dateTo || 'now'}` : datePreset}
+                  </span>
+                )}
+                {statusFilter !== 'ALL' && (
+                  <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                    Status: {statusFilter}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('ALL');
+                  setSourceFilter('ALL');
+                  setCompletenessFilter('ALL');
+                  setDatePreset('ALL');
+                  setDateFrom('');
+                  setDateTo('');
+                }}
+                className="text-blue-600 hover:text-blue-800 font-bold hover:underline"
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Lead Table */}
@@ -706,6 +914,10 @@ export default function LeadsPage() {
                     <tr key={l.id} className="hover:bg-slate-50/80 transition">
                       <td className="p-3.5 font-mono text-blue-600 font-bold">
                         <div>{l.leadNumber}</div>
+                        <div className="text-[10px] text-slate-500 font-sans font-medium flex items-center gap-1 mt-0.5">
+                          <Calendar className="w-2.5 h-2.5 text-slate-400" />
+                          {l.createdAt ? l.createdAt.split('T')[0] : 'N/A'}
+                        </div>
                         {l.importId && (
                           <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Excel Import
@@ -831,6 +1043,15 @@ export default function LeadsPage() {
                               <UserCheck className="w-3.5 h-3.5" /> Convert
                             </button>
                           )}
+
+                          {/* Delete Lead */}
+                          <button
+                            onClick={() => setLeadToDelete(l)}
+                            title="Delete Lead from Database"
+                            className="p-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 hover:text-rose-800 hover:bg-rose-100 transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -2001,6 +2222,100 @@ export default function LeadsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* CLEAR ALL LEADS CONFIRMATION MODAL */}
+        {isClearAllModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+              <div className="p-6 text-center">
+                <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-200">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Reduce / Clear All Leads Data?</h3>
+                <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                  This action will permanently delete all <strong className="text-rose-700">{leads.length} lead records</strong> and all lead import histories from the database.
+                </p>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-left text-[11px] text-amber-800 mb-6 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>Existing converted customers, sales orders, and invoices in other modules will remain intact.</span>
+                </div>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => setIsClearAllModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={handleClearAllLeadsConfirm}
+                    className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Clearing Data...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-3.5 h-3.5" /> Yes, Clear All Leads
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SINGLE LEAD DELETE CONFIRMATION MODAL */}
+        {leadToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+              <div className="p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-200">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mb-1">Delete Lead</h3>
+                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                  Are you sure you want to permanently delete lead:
+                </p>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left text-xs mb-5">
+                  <div className="font-bold text-slate-900">{leadToDelete.companyName || leadToDelete.leadName}</div>
+                  <div className="text-[11px] text-slate-500 font-mono mt-0.5">ID: {leadToDelete.leadNumber} | Mobile: {leadToDelete.mobile || 'N/A'}</div>
+                </div>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => setLeadToDelete(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={handleDeleteLeadConfirm}
+                    className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-3.5 h-3.5" /> Delete Lead
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

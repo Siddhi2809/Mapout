@@ -51,3 +51,19 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function DELETE() {
+  try {
+    try {
+      await prisma.leadImportHistory.deleteMany({});
+    } catch {
+      await prisma.$executeRawUnsafe(`DELETE FROM "LeadImportHistory";`);
+    }
+    return NextResponse.json({ success: true, message: 'All lead import history records cleared.' });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, message: error.message || 'Failed to clear lead import history' },
+      { status: 400 }
+    );
+  }
+}

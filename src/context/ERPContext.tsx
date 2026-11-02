@@ -112,6 +112,7 @@ interface ERPContextType {
   toggleProductStatus: (id: string) => { success: boolean; message?: string };
   refreshProductsFromDB: () => Promise<ProductMaster[]>;
   refreshRawMaterialsFromDB: () => Promise<RawMaterial[]>;
+  refreshSalesOrdersFromDB: () => Promise<SalesOrder[]>;
 
   // BOM Actions
   addBOM: (bom: Omit<BOM, 'id' | 'bomNumber' | 'createdDate'>) => { success: boolean; message?: string };
@@ -165,9 +166,11 @@ interface ERPContextType {
   updateCustomerFull: (id: string, customer: Partial<Customer>) => { success: boolean; message?: string };
   toggleCustomerStatus: (id: string) => { success: boolean; message?: string };
 
-  createLeadFull: (lead: Omit<Lead, 'id' | 'leadNumber' | 'createdAt'>) => { success: boolean; message?: string };
-  updateLeadFull: (id: string, lead: Partial<Lead>) => { success: boolean; message?: string };
+  createLeadFull: (lead: Omit<Lead, 'id' | 'leadNumber' | 'createdAt'>) => Promise<{ success: boolean; message?: string; data?: any }>;
+  updateLeadFull: (id: string, lead: Partial<Lead>) => Promise<{ success: boolean; message?: string; data?: any }>;
   convertLeadToCustomer: (leadId: string) => { success: boolean; message?: string; customerId?: string };
+  deleteLead: (id: string) => Promise<{ success: boolean; message?: string }>;
+  clearAllLeads: () => Promise<{ success: boolean; message?: string }>;
   leadImportHistories: LeadImportHistory[];
   importLeadsBatch: (
     rows: any[],
@@ -778,40 +781,148 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const completeProductionOrder = (id: string): boolean => {
-    const pOrder = productionOrders.find((p) => p.id === id);
-    if (!pOrder || pOrder.status === 'COMPLETED') return false;
+    // 1. Locate the production order
+    let pOrder = productionOrders.find((p) => p.id === id || p.orderNumber === id) as any;
+    let linkedSalesOrderId: string | null = null;
 
-    const targetGood = finishedGoods.find((fg) => fg.id === pOrder.finishedGoodId);
-    if (!targetGood) return false;
+    if (!pOrder) {
+      // Check if it's a synthesized sales order production batch (e.g. so_po_${so.id}_${idx})
+      const matchingSO = salesOrders.find((so) => id.includes(so.id) || so.orderNumber === id);
+      if (matchingSO) {
+        linkedSalesOrderId = matchingSO.id;
+        const matchingItem = matchingSO.items?.[0];
+        pOrder = {
+          id,
+          orderNumber: `${matchingSO.orderNumber}-PROD`,
+          productId: matchingItem?.productId,
+          finishedGoodId: matchingItem?.productId,
+          productName: matchingItem?.productName || 'Product',
+          quantityToProduce: matchingItem?.quantity || 1,
+          plannedQuantity: matchingItem?.quantity || 1,
+          status: matchingSO.productionStatus || 'In Production',
+        };
+      }
+    }
 
-    // Check raw material stock
+    if (!pOrder || pOrder.status === 'COMPLETED' || pOrder.status === 'Completed') return false;
+
+    const targetGood = finishedGoods.find((fg) => fg.id === pOrder.finishedGoodId || fg.id === pOrder.productId || fg.sku === pOrder.sku);
+    const targetProduct = products.find(
+      (p) =>
+        p.id === pOrder.productId ||
+        p.id === pOrder.finishedGoodId ||
+        p.sku === pOrder.sku ||
+        p.name.toLowerCase() === (pOrder.productName || pOrder.finishedGoodName || '').toLowerCase()
+    );
+
+    const qtyToProduce = Number(pOrder.quantityToProduce || pOrder.plannedQuantity || 1);
+
+    // 2. Resolve BOM components from: targetProduct.rawMaterialQuantities, targetGood.bom, or boms table
+    let components: Array<{ rawMaterialId: string; rawMaterialName: string; sku?: string; unit?: string; quantityUsed: number }> = [];
+
+    if (
+      targetProduct?.rawMaterialQuantities &&
+      Array.isArray(targetProduct.rawMaterialQuantities) &&
+      targetProduct.rawMaterialQuantities.length > 0
+    ) {
+      components = targetProduct.rawMaterialQuantities.map((q) => ({
+        rawMaterialId: q.rawMaterialId,
+        rawMaterialName: q.rawMaterialName,
+        sku: q.sku,
+        unit: q.unit,
+        quantityUsed: Number(q.quantityUsed || 1),
+      }));
+    } else if (targetGood?.bom && Array.isArray(targetGood.bom) && targetGood.bom.length > 0) {
+      components = targetGood.bom.map((b) => {
+        const foundRm = rawMaterials.find((r) => r.id === b.rawMaterialId);
+        return {
+          rawMaterialId: b.rawMaterialId,
+          rawMaterialName: foundRm?.name || b.rawMaterialId,
+          unit: 'PCS',
+          quantityUsed: Number(b.quantityRequired || 1),
+        };
+      });
+    } else {
+      const normProdName = (targetProduct?.name || targetGood?.name || pOrder.productName || pOrder.finishedGoodName || '').toLowerCase().trim();
+      const bom = boms.find((b) => {
+        const normBomName = (b.productName || '').toLowerCase().trim();
+        return (
+          b.productId === targetProduct?.id ||
+          b.productId === targetGood?.id ||
+          b.id === pOrder.bomId ||
+          (normProdName && normBomName === normProdName)
+        );
+      });
+      if (bom && Array.isArray(bom.items) && bom.items.length > 0) {
+        components = bom.items.map((bi) => ({
+          rawMaterialId: bi.rawMaterialId,
+          rawMaterialName: bi.rawMaterialName,
+          sku: bi.sku,
+          unit: bi.unit,
+          quantityUsed: Number(bi.quantity || 1),
+        }));
+      }
+    }
+
+    // Fallback: If no components configured, link primary available raw material
+    if (components.length === 0 && rawMaterials.length > 0) {
+      const matchingRm =
+        rawMaterials.find((r) => r.category.toLowerCase().includes('wire') || r.category.toLowerCase().includes('connector')) ||
+        rawMaterials[0];
+      if (matchingRm) {
+        components.push({
+          rawMaterialId: matchingRm.id,
+          rawMaterialName: matchingRm.name,
+          sku: matchingRm.sku,
+          unit: matchingRm.unit,
+          quantityUsed: 1,
+        });
+      }
+    }
+
+    // 3. Check raw material stock availability
     const missingMaterials: string[] = [];
-    targetGood.bom.forEach((bomItem) => {
-      const requiredQty = bomItem.quantityRequired * pOrder.quantityToProduce;
-      const rm = rawMaterials.find((r) => r.id === bomItem.rawMaterialId);
+    components.forEach((comp) => {
+      const requiredQty = comp.quantityUsed * qtyToProduce;
+      const rm = rawMaterials.find(
+        (r) =>
+          r.id === comp.rawMaterialId ||
+          (comp.sku && r.sku.toLowerCase() === comp.sku.toLowerCase()) ||
+          r.name.toLowerCase() === comp.rawMaterialName.toLowerCase()
+      );
       if (!rm || rm.currentStock < requiredQty) {
-        missingMaterials.push(rm ? rm.name : bomItem.rawMaterialId);
+        missingMaterials.push(`${comp.rawMaterialName} (Required: ${requiredQty}, Available: ${rm ? rm.currentStock : 0})`);
       }
     });
 
-    if (missingMaterials.length > 0) {
+    if (missingMaterials.length > 0 && activeRole !== 'ADMIN') {
       alert(`Cannot complete production order. Insufficient stock for: ${missingMaterials.join(', ')}`);
       return false;
     }
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Deduct Raw Materials & Record Stock Transactions
-    const deductionsToPersist: Array<{ rawMaterialId: string; quantity: number }> = [];
+    // 4. Deduct Raw Materials & Record Stock Transactions
+    const deductionsToPersist: Array<{ rawMaterialId: string; sku?: string; rawMaterialName?: string; quantity: number }> = [];
 
     setRawMaterials((prev) =>
       prev.map((rm) => {
-        const bomItem = targetGood.bom.find((b) => b.rawMaterialId === rm.id);
-        if (bomItem) {
-          const requiredQty = bomItem.quantityRequired * pOrder.quantityToProduce;
+        const comp = components.find(
+          (c) =>
+            c.rawMaterialId === rm.id ||
+            (c.sku && rm.sku.toLowerCase() === c.sku.toLowerCase()) ||
+            rm.name.toLowerCase() === c.rawMaterialName.toLowerCase()
+        );
+        if (comp) {
+          const requiredQty = comp.quantityUsed * qtyToProduce;
           const prevBal = rm.currentStock;
-          const newBal = prevBal - requiredQty;
-          deductionsToPersist.push({ rawMaterialId: rm.id, quantity: requiredQty });
+          const newBal = Math.max(0, prevBal - requiredQty);
+          deductionsToPersist.push({
+            rawMaterialId: rm.id,
+            sku: rm.sku,
+            rawMaterialName: rm.name,
+            quantity: requiredQty,
+          });
 
           const tx: RawMaterialStockTransaction = {
             id: `tx-${Date.now().toString().slice(-5)}-${rm.id}`,
@@ -824,9 +935,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             quantityOut: requiredQty,
             previousBalance: prevBal,
             newBalance: newBal,
-            user: pOrder.assignedEngineer || 'Production Engineer',
+            user: pOrder.assignedEngineer || (activeRole === 'ADMIN' ? 'Admin' : 'Production Engineer'),
           };
           setStockTransactions((st) => [tx, ...st]);
+
+          const mc: MaterialConsumption = {
+            id: `cons-${Date.now().toString().slice(-4)}-${rm.id}`,
+            consumptionId: `MC-${pOrder.orderNumber}-${rm.sku || rm.id.slice(-4)}`,
+            productionOrderId: pOrder.id || pOrder.orderNumber,
+            rawMaterialId: rm.id,
+            rawMaterialName: rm.name,
+            sku: rm.sku,
+            quantity: requiredQty,
+            unit: rm.unit,
+            date: today,
+            user: pOrder.assignedEngineer || 'Production Engineer',
+            notes: `Consumed for Production Order ${pOrder.orderNumber} (${targetProduct?.name || targetGood?.name || 'Product'} x ${qtyToProduce})`,
+          };
+          setMaterialConsumptions((prev) => [mc, ...prev]);
 
           return { ...rm, currentStock: newBal };
         }
@@ -834,6 +960,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    // 5. Persist deductions to PostgreSQL Neon Database
     if (deductionsToPersist.length > 0) {
       fetch('/api/raw-materials', {
         method: 'PUT',
@@ -842,28 +969,67 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }).then(() => refreshRawMaterialsFromDB()).catch(console.warn);
     }
 
-    // Increment Finished Good Stock & Product Master Stock
-    setFinishedGoods((prev) =>
-      prev.map((fg) =>
-        fg.id === targetGood.id
-          ? { ...fg, currentStock: fg.currentStock + pOrder.quantityToProduce }
-          : fg
-      )
-    );
-    setProducts((prev) =>
+    // 6. Increment Finished Good Stock & Product Master Stock
+    if (targetGood) {
+      setFinishedGoods((prev) =>
+        prev.map((fg) =>
+          fg.id === targetGood.id
+            ? { ...fg, currentStock: fg.currentStock + qtyToProduce }
+            : fg
+        )
+      );
+    }
+    if (targetProduct || targetGood) {
+      const prodId = targetProduct?.id || targetGood?.id;
+      const prodSku = targetProduct?.sku || targetGood?.sku;
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === prodId || (prodSku && p.sku === prodSku)
+            ? { ...p, currentStock: p.currentStock + qtyToProduce }
+            : p
+        )
+      );
+      // Persist product stock update to API
+      if (prodId) {
+        fetch('/api/products', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: prodId,
+            currentStock: (targetProduct?.currentStock || 0) + qtyToProduce,
+          }),
+        }).catch(console.warn);
+      }
+    }
+
+    // 7. Update Order Status
+    setProductionOrders((prev) =>
       prev.map((p) =>
-        p.id === targetGood.id || p.sku === targetGood.sku
-          ? { ...p, currentStock: p.currentStock + pOrder.quantityToProduce }
+        p.id === id || p.orderNumber === id
+          ? { ...p, status: 'COMPLETED', completionDate: today, producedQuantity: qtyToProduce }
           : p
       )
     );
 
-    // Update Order Status
-    setProductionOrders((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, status: 'COMPLETED', completionDate: today } : p
-      )
-    );
+    if (linkedSalesOrderId || pOrder.salesOrderId) {
+      const soId = linkedSalesOrderId || pOrder.salesOrderId;
+      setSalesOrders((prev) =>
+        prev.map((so) =>
+          so.id === soId
+            ? { ...so, productionStatus: 'Production Completed', rawMaterialsDeducted: true }
+            : so
+        )
+      );
+      fetch('/api/sales-orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: soId,
+          productionStatus: 'Production Completed',
+          rawMaterialsDeducted: true,
+        }),
+      }).catch(console.warn);
+    }
 
     return true;
   };
@@ -1163,7 +1329,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const createLeadFull = (lead: Omit<Lead, 'id' | 'leadNumber' | 'createdAt'>) => {
+  const createLeadFull = async (lead: Omit<Lead, 'id' | 'leadNumber' | 'createdAt'>): Promise<{ success: boolean; message?: string; data?: any }> => {
     const year = new Date().getFullYear();
     const leadNumber = `LD-${year}-${Math.floor(100 + Math.random() * 900)}`;
     const newId = `lead-${Date.now().toString().slice(-4)}`;
@@ -1179,33 +1345,71 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleLeadStatusAutomation(newLead, newLead.status);
     }
 
-    fetch('/api/leads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newLead),
-    }).catch((err) => console.warn('Sync lead create error:', err));
-    return { success: true };
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLead),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.success && data?.data) {
+        const persisted = data.data;
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === newId || l.leadNumber === leadNumber
+              ? { ...l, ...persisted, id: persisted.id || l.id }
+              : l
+          )
+        );
+        return { success: true, data: persisted };
+      }
+    } catch (err) {
+      console.warn('Sync lead create error:', err);
+    }
+    return { success: true, data: newLead };
   };
 
-  const updateLeadFull = (id: string, updated: Partial<Lead>) => {
+  const updateLeadFull = async (id: string, updated: Partial<Lead>): Promise<{ success: boolean; message?: string; data?: any }> => {
     let currentLead: Lead | undefined;
     setLeads((prev) => {
-      const match = prev.find((l) => l.id === id);
+      const match = prev.find((l) => l.id === id || l.leadNumber === id);
       if (match) {
         currentLead = { ...match, ...updated };
       }
-      return prev.map((l) => (l.id === id ? { ...l, ...updated } : l));
+      return prev.map((l) => (l.id === id || (match && l.id === match.id) ? { ...l, ...updated } : l));
     });
 
     if (currentLead && updated.status) {
       handleLeadStatusAutomation(currentLead, updated.status);
     }
 
-    fetch('/api/leads', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updated }),
-    }).catch((err) => console.warn('Sync lead update error:', err));
+    try {
+      const payload = {
+        id,
+        leadNumber: currentLead?.leadNumber || (updated as any).leadNumber,
+        ...updated,
+      };
+
+      const res = await fetch('/api/leads', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.success && data?.data) {
+        const persisted = data.data;
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === id || l.leadNumber === payload.leadNumber || l.id === persisted.id
+              ? { ...l, ...persisted }
+              : l
+          )
+        );
+        return { success: true, data: persisted };
+      }
+    } catch (err) {
+      console.warn('Sync lead update error:', err);
+    }
     return { success: true };
   };
 
@@ -1301,6 +1505,46 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     return { success: true, customerId };
+  };
+
+  const deleteLead = async (id: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      setFollowUps((prev) => prev.filter((f) => !(f.type === 'Lead' && f.leadOrCustomerId === id)));
+
+      const res = await fetch(`/api/leads?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return { success: true, message: data.message || 'Lead deleted successfully' };
+      }
+      return { success: false, message: data.message || 'Failed to delete lead from database' };
+    } catch (err: any) {
+      console.warn('Sync lead delete error:', err);
+      return { success: false, message: err.message || 'Error deleting lead' };
+    }
+  };
+
+  const clearAllLeads = async (): Promise<{ success: boolean; message?: string }> => {
+    try {
+      setLeads([]);
+      setLeadImportHistories([]);
+      setFollowUps((prev) => prev.filter((f) => f.type !== 'Lead'));
+
+      const [resLeads] = await Promise.all([
+        fetch('/api/leads?all=true', { method: 'DELETE' }),
+        fetch('/api/leads/import-history', { method: 'DELETE' }).catch(() => null),
+      ]);
+      const data = await resLeads.json().catch(() => ({}));
+      if (resLeads.ok) {
+        return { success: true, message: data.message || 'All leads cleared successfully' };
+      }
+      return { success: false, message: data.message || 'Failed to clear leads from database' };
+    } catch (err: any) {
+      console.warn('Sync clear all leads error:', err);
+      return { success: false, message: err.message || 'Error clearing leads' };
+    }
   };
 
   const importLeadsBatch = async (
@@ -2437,12 +2681,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
     const today = new Date().toISOString().split('T')[0];
 
-    // Normalize images array
+    // Normalize images array and merge with any existing photos
+    const existingOrder = salesOrders.find((so) => so.id === id || so.orderNumber === id);
     let images: string[] = data.productionImages ? [...data.productionImages] : [];
     if (data.packedImage && !images.includes(data.packedImage)) {
       images = [data.packedImage, ...images];
     }
-    const primaryPackedImage = images[0] || data.packedImage || '';
+    const existingImgs = (existingOrder?.productionImages && Array.isArray(existingOrder.productionImages)) ? existingOrder.productionImages : [];
+    const mergedImages = Array.from(new Set([...(images.length > 0 ? images : existingImgs)]));
+    const primaryPackedImage = images[0] || data.packedImage || existingOrder?.packedImage || (mergedImages[0] || '');
 
     setSalesOrders((prev) =>
       prev.map((so) => {
@@ -2450,8 +2697,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const newOrderStatus = data.orderStatus ?? so.orderStatus;
           const newProdStatus = data.productionStatus ?? so.productionStatus ?? (data.orderStatus as string);
           const newPackStatus = data.packingStatus ?? so.packingStatus;
-
-          const mergedImages = Array.from(new Set([...(images.length > 0 ? images : so.productionImages || [])]));
 
           const historyEntry: OrderStatusHistoryItem = {
             status: newOrderStatus,
@@ -2501,7 +2746,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         packingNotes: data.packingNotes,
         productionDate: data.productionDate,
         packingDate: data.packingDate,
-        productionImages: images,
+        productionImages: mergedImages.length > 0 ? mergedImages : images,
         dispatchStatus: data.orderStatus === 'Ready for Dispatch' ? 'Ready to Dispatch' : undefined,
         packedImage: primaryPackedImage,
         productTeamRemarks: data.productTeamRemarks,
@@ -2510,7 +2755,27 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rawMaterialsDeducted: data.rawMaterialsDeducted,
         rawMaterialsUsed: data.rawMaterialsUsed,
       }),
-    }).catch((err) => console.warn('Failed to sync updated order processing to DB:', err));
+    })
+      .then((r) => r.json())
+      .then((resData) => {
+        if (resData?.success && resData?.data) {
+          setSalesOrders((prev) =>
+            prev.map((so) =>
+              so.id === id || so.orderNumber === id || so.id === resData.data.id || so.orderNumber === resData.data.orderNumber
+                ? {
+                    ...so,
+                    ...resData.data,
+                    productionImages: Array.isArray(resData.data.productionImages)
+                      ? resData.data.productionImages
+                      : mergedImages,
+                    packedImage: resData.data.packedImage || primaryPackedImage || so.packedImage,
+                  }
+                : so
+            )
+          );
+        }
+      })
+      .catch((err) => console.warn('Failed to sync updated order processing to DB:', err));
 
     // Sync linked quotation status
     const effectiveQuoteStatus = (data.orderStatus || data.productionStatus) as QuotationStatus;
@@ -3872,10 +4137,133 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
-  const updatePurchaseOrderStatus = (id: string, status: PurchaseOrder['status']) => {
-    setPurchaseOrders((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status } : p))
+  const receivePurchaseOrder = async (id: string): Promise<{ success: boolean; message?: string; updatedMaterials?: any[] }> => {
+    const po = purchaseOrders.find((p) => p.id === id || p.poNumber === id);
+    if (!po) return { success: false, message: 'Purchase Order not found.' };
+    if (po.status === 'Received') return { success: false, message: 'Purchase Order is already marked as Received.' };
+
+    const today = new Date().toISOString().split('T')[0];
+    const additionsToPersist: Array<{ rawMaterialId: string; sku?: string; rawMaterialName?: string; quantity: number; unitCost?: number }> = [];
+    const updatedDetails: Array<{ id: string; name: string; sku: string; previousStock: number; updatedStock: number; added: number }> = [];
+
+    // 1. Calculate stock increments & record transactions
+    po.items.forEach((item) => {
+      const liveRm = rawMaterials.find(
+        (r) =>
+          r.id === item.rawMaterialId ||
+          (item.sku && r.sku.toLowerCase() === item.sku.toLowerCase()) ||
+          r.name.toLowerCase() === item.rawMaterialName.toLowerCase()
+      );
+      const rmId = liveRm?.id || item.rawMaterialId;
+      const rmName = liveRm?.name || item.rawMaterialName;
+      const rmSku = liveRm?.sku || item.sku || 'RM-SKU';
+      const prevBal = liveRm ? liveRm.currentStock : 0;
+      const newBal = prevBal + item.quantity;
+
+      additionsToPersist.push({
+        rawMaterialId: rmId,
+        sku: rmSku,
+        rawMaterialName: rmName,
+        quantity: item.quantity,
+        unitCost: item.unitCost,
+      });
+
+      updatedDetails.push({
+        id: rmId,
+        name: rmName,
+        sku: rmSku,
+        previousStock: prevBal,
+        updatedStock: newBal,
+        added: item.quantity,
+      });
+
+      // Log Raw Material Stock Transaction (Purchase)
+      const tx: RawMaterialStockTransaction = {
+        id: `tx-${Date.now().toString().slice(-5)}-po-${rmId}`,
+        materialId: rmId,
+        materialName: rmName,
+        date: today,
+        transactionType: 'Purchase',
+        reference: po.poNumber,
+        quantityIn: item.quantity,
+        quantityOut: 0,
+        previousBalance: prevBal,
+        newBalance: newBal,
+        user: activeRole === 'ADMIN' ? 'Admin' : 'Procurement Manager',
+      };
+      setStockTransactions((st) => [tx, ...st]);
+    });
+
+    // 2. Update local raw materials current stock in state
+    setRawMaterials((prev) =>
+      prev.map((rm) => {
+        const item = po.items.find(
+          (i) =>
+            i.rawMaterialId === rm.id ||
+            (i.sku && rm.sku.toLowerCase() === i.sku.toLowerCase()) ||
+            rm.name.toLowerCase() === i.rawMaterialName.toLowerCase()
+        );
+        if (item) {
+          return {
+            ...rm,
+            currentStock: rm.currentStock + item.quantity,
+            lastRestocked: today,
+          };
+        }
+        return rm;
+      })
     );
+
+    // 3. Mark PO as Received with full receivedQuantity
+    const totalQty = po.items.reduce((acc, i) => acc + i.quantity, 0);
+    setPurchaseOrders((prev) =>
+      prev.map((p) =>
+        p.id === po.id || p.poNumber === po.poNumber
+          ? { ...p, status: 'Received', receivedQuantity: totalQty }
+          : p
+      )
+    );
+
+    // 4. Persist to PostgreSQL Neon database
+    try {
+      if (additionsToPersist.length > 0) {
+        await fetch('/api/raw-materials', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ additions: additionsToPersist }),
+        });
+      }
+      await fetch('/api/purchase-orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: po.id,
+          poNumber: po.poNumber,
+          status: 'Received',
+          receivedQuantity: totalQty,
+        }),
+      });
+      refreshRawMaterialsFromDB();
+    } catch (err) {
+      console.warn('Failed to sync PO receipt to DB:', err);
+    }
+
+    return { success: true, updatedMaterials: updatedDetails };
+  };
+
+  const updatePurchaseOrderStatus = (id: string, status: PurchaseOrder['status']) => {
+    if (status === 'Received') {
+      receivePurchaseOrder(id);
+    } else {
+      setPurchaseOrders((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status } : p))
+      );
+      fetch('/api/purchase-orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      }).catch(console.warn);
+    }
   };
 
   // --- MATERIAL RECEIPTS ACTIONS ---
@@ -3925,13 +4313,27 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMaterialReceipts((prev) => [newReceipt, ...prev]);
 
     // 2. Automatically Increase Raw Material Stock by Accepted Quantity & Log Stock Transactions
+    const additionsToPersist: Array<{ rawMaterialId: string; sku?: string; rawMaterialName?: string; quantity: number; unitCost?: number }> = [];
+
     receipt.items.forEach((item) => {
       if (item.acceptedQuantity > 0) {
         setRawMaterials((prev) =>
           prev.map((rm) => {
-            if (rm.id === item.rawMaterialId) {
+            if (
+              rm.id === item.rawMaterialId ||
+              (item.sku && rm.sku.toLowerCase() === item.sku.toLowerCase()) ||
+              rm.name.toLowerCase() === item.rawMaterialName.toLowerCase()
+            ) {
               const prevBal = rm.currentStock;
               const newBal = prevBal + item.acceptedQuantity;
+
+              additionsToPersist.push({
+                rawMaterialId: rm.id,
+                sku: rm.sku,
+                rawMaterialName: rm.name,
+                quantity: item.acceptedQuantity,
+                unitCost: (item as any).unitCost || (item as any).rate || rm.unitCost,
+              });
 
               // Log Transaction
               const tx: RawMaterialStockTransaction = {
@@ -3957,6 +4359,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Persist stock additions to PostgreSQL Neon DB
+    if (additionsToPersist.length > 0) {
+      fetch('/api/raw-materials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ additions: additionsToPersist }),
+      }).then(() => refreshRawMaterialsFromDB()).catch(console.warn);
+    }
+
     // 3. Update Purchase Order Received Quantities & Status
     setPurchaseOrders((prev) =>
       prev.map((p) => {
@@ -3965,6 +4376,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const currentReceived = (p.receivedQuantity || 0) + acceptedQuantity;
           const newStatus: PurchaseOrder['status'] =
             currentReceived >= totalOrdered ? 'Received' : 'Partially Received';
+
+          if (newStatus === 'Received') {
+            fetch('/api/purchase-orders', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: p.id,
+                status: 'Received',
+                receivedQuantity: currentReceived,
+              }),
+            }).catch(console.warn);
+          }
 
           return {
             ...p,
@@ -4342,19 +4765,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setBoms((prev) => [newBOM, ...prev.map((b) => (b.productId === newId ? { ...b, status: 'Inactive' as const } : b))]);
     }
 
-    // Deduct used raw materials from raw material inventory
-    if (prod.currentStock > 0 && prod.rawMaterialQuantities && prod.rawMaterialQuantities.length > 0) {
+    // Deduct used raw materials from raw material inventory (deduct ONLY the used amount, e.g. 5 or 20)
+    if (prod.rawMaterialQuantities && prod.rawMaterialQuantities.length > 0) {
       setRawMaterials((prev) => {
         let updatedRMs = [...prev];
         prod.rawMaterialQuantities!.forEach((rmq) => {
-          const totalUsed = Math.round(
-            (Number(rmq.quantityUsed || 1) * (1 + Number(rmq.wastagePercent || 0) / 100)) * prod.currentStock
-          );
-          updatedRMs = updatedRMs.map((rm) =>
-            rm.id === rmq.rawMaterialId || rm.sku === rmq.sku || rm.name === rmq.rawMaterialName
-              ? { ...rm, currentStock: Math.max(0, rm.currentStock - totalUsed) }
-              : rm
-          );
+          const usedAmount = Number(rmq.quantityUsed || 0);
+          if (usedAmount > 0) {
+            updatedRMs = updatedRMs.map((rm) =>
+              rm.id === rmq.rawMaterialId || rm.sku === rmq.sku || rm.name.toLowerCase() === (rmq.rawMaterialName || '').toLowerCase()
+                ? { ...rm, currentStock: Math.max(0, rm.currentStock - usedAmount) }
+                : rm
+            );
+          }
         });
         return updatedRMs;
       });
@@ -4445,25 +4868,53 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch((err) => console.warn('Failed to sync updated product to DB:', err));
 
-    if (updated.rawMaterialQuantities && updated.rawMaterialQuantities.length > 0) {
+    if (updated.rawMaterialQuantities && Array.isArray(updated.rawMaterialQuantities)) {
       const targetProd = products.find((p) => p.id === id);
-      const prodStock = updated.currentStock !== undefined ? Number(updated.currentStock) : (targetProd?.currentStock || 0);
-      if (prodStock > 0) {
-        setRawMaterials((prev) => {
-          let updatedRMs = [...prev];
-          updated.rawMaterialQuantities!.forEach((rmq) => {
-            const totalUsed = Math.round(
-              (Number(rmq.quantityUsed || 1) * (1 + Number(rmq.wastagePercent || 0) / 100)) * prodStock
-            );
+      const prevQuantities = targetProd?.rawMaterialQuantities || [];
+
+      setRawMaterials((prev) => {
+        let updatedRMs = [...prev];
+        updated.rawMaterialQuantities!.forEach((rmq) => {
+          const prevItem = prevQuantities.find(
+            (p) =>
+              (rmq.rawMaterialId && p.rawMaterialId === rmq.rawMaterialId) ||
+              (rmq.sku && p.sku === rmq.sku) ||
+              (rmq.rawMaterialName && p.rawMaterialName && p.rawMaterialName.toLowerCase() === rmq.rawMaterialName.toLowerCase())
+          );
+          const prevUsed = prevItem ? Number(prevItem.quantityUsed || 0) : 0;
+          const currentUsed = Number(rmq.quantityUsed || 0);
+          const delta = currentUsed - prevUsed;
+          if (delta !== 0) {
             updatedRMs = updatedRMs.map((rm) =>
-              rm.id === rmq.rawMaterialId || rm.sku === rmq.sku || rm.name === rmq.rawMaterialName
-                ? { ...rm, currentStock: Math.max(0, rm.currentStock - totalUsed) }
+              rm.id === rmq.rawMaterialId || rm.sku === rmq.sku || rm.name.toLowerCase() === (rmq.rawMaterialName || '').toLowerCase()
+                ? { ...rm, currentStock: Math.max(0, rm.currentStock - delta) }
                 : rm
             );
-          });
-          return updatedRMs;
+          }
         });
-      }
+
+        // Restore stock for any raw materials that were removed from the product
+        prevQuantities.forEach((prevItem) => {
+          const stillPresent = updated.rawMaterialQuantities!.some(
+            (q) =>
+              (prevItem.rawMaterialId && q.rawMaterialId === prevItem.rawMaterialId) ||
+              (prevItem.sku && q.sku === prevItem.sku) ||
+              (prevItem.rawMaterialName && q.rawMaterialName && q.rawMaterialName.toLowerCase() === prevItem.rawMaterialName.toLowerCase())
+          );
+          if (!stillPresent) {
+            const restoreQty = Number(prevItem.quantityUsed || 0);
+            if (restoreQty > 0) {
+              updatedRMs = updatedRMs.map((rm) =>
+                rm.id === prevItem.rawMaterialId || rm.sku === prevItem.sku || rm.name.toLowerCase() === (prevItem.rawMaterialName || '').toLowerCase()
+                  ? { ...rm, currentStock: rm.currentStock + restoreQty }
+                  : rm
+              );
+            }
+          }
+        });
+
+        return updatedRMs;
+      });
 
       const bomItems: BOMItem[] = updated.rawMaterialQuantities.map((rmq) => ({
         rawMaterialId: rmq.rawMaterialId,
@@ -4523,6 +4974,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setProducts((prev) => prev.filter((p) => p.id !== id));
 
+    // Restore raw materials in inventory
+    if (prod.rawMaterialQuantities && Array.isArray(prod.rawMaterialQuantities)) {
+      setRawMaterials((prev) => {
+        let updatedRMs = [...prev];
+        prod.rawMaterialQuantities!.forEach((rmq) => {
+          const restoreQty = Number(rmq.quantityUsed || 0);
+          if (restoreQty > 0) {
+            updatedRMs = updatedRMs.map((rm) =>
+              rm.id === rmq.rawMaterialId || rm.sku === rmq.sku || rm.name.toLowerCase() === (rmq.rawMaterialName || '').toLowerCase()
+                ? { ...rm, currentStock: rm.currentStock + restoreQty }
+                : rm
+            );
+          }
+        });
+        return updatedRMs;
+      });
+    }
+
     // Delete from PostgreSQL database via API
     fetch(`/api/products?id=${encodeURIComponent(id)}&sku=${encodeURIComponent(prod.sku || '')}`, {
       method: 'DELETE',
@@ -4555,6 +5024,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (e) {
       console.warn('Failed to refresh raw materials from DB:', e);
+    }
+    return [];
+  };
+
+  const refreshSalesOrdersFromDB = async (): Promise<SalesOrder[]> => {
+    try {
+      const res = await fetch('/api/sales-orders');
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
+        setSalesOrders(data.data);
+        return data.data;
+      }
+    } catch (e) {
+      console.warn('Failed to refresh sales orders from DB:', e);
     }
     return [];
   };
@@ -4731,21 +5214,76 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Deduct raw materials based on BOM items & create consumption stock transactions
+      let components: Array<{ rawMaterialId: string; rawMaterialName: string; sku?: string; unit?: string; quantityUsed: number }> = [];
+
       const targetBOM =
         boms.find((b) => b.id === pOrder.bomId) ||
         boms.find((b) => b.productId === targetProdId && b.status === 'Active') ||
         boms.find((b) => b.productId === targetProdId);
 
-      if (targetBOM) {
+      if (targetProductObj?.rawMaterialQuantities && Array.isArray(targetProductObj.rawMaterialQuantities) && targetProductObj.rawMaterialQuantities.length > 0) {
+        components = targetProductObj.rawMaterialQuantities.map((q) => ({
+          rawMaterialId: q.rawMaterialId,
+          rawMaterialName: q.rawMaterialName,
+          sku: q.sku,
+          unit: q.unit,
+          quantityUsed: Number(q.quantityUsed || 1),
+        }));
+      } else if (targetBOM && Array.isArray(targetBOM.items) && targetBOM.items.length > 0) {
+        components = targetBOM.items.map((bi) => ({
+          rawMaterialId: bi.rawMaterialId,
+          rawMaterialName: bi.rawMaterialName,
+          sku: bi.sku,
+          unit: bi.unit,
+          quantityUsed: Math.ceil(bi.quantity * (1 + (bi.wastagePercent || 0) / 100)),
+        }));
+      } else if (targetFGObj?.bom && Array.isArray(targetFGObj.bom) && targetFGObj.bom.length > 0) {
+        components = targetFGObj.bom.map((b) => {
+          const foundRm = rawMaterials.find((r) => r.id === b.rawMaterialId);
+          return {
+            rawMaterialId: b.rawMaterialId,
+            rawMaterialName: foundRm?.name || b.rawMaterialId,
+            unit: 'PCS',
+            quantityUsed: Number(b.quantityRequired || 1),
+          };
+        });
+      } else if (rawMaterials.length > 0) {
+        const matchingRm =
+          rawMaterials.find((r) => r.category.toLowerCase().includes('wire') || r.category.toLowerCase().includes('connector')) ||
+          rawMaterials[0];
+        if (matchingRm) {
+          components.push({
+            rawMaterialId: matchingRm.id,
+            rawMaterialName: matchingRm.name,
+            sku: matchingRm.sku,
+            unit: matchingRm.unit,
+            quantityUsed: 1,
+          });
+        }
+      }
+
+      if (components.length > 0) {
+        const pDeductions: Array<{ rawMaterialId: string; sku?: string; rawMaterialName?: string; quantity: number }> = [];
+
         setRawMaterials((prev) =>
           prev.map((rm) => {
-            const bItem = targetBOM.items.find((bi) => bi.rawMaterialId === rm.id);
-            if (bItem) {
-              const req = Math.ceil(
-                bItem.quantity * (1 + (bItem.wastagePercent || 0) / 100) * targetQty
-              );
+            const comp = components.find(
+              (c) =>
+                c.rawMaterialId === rm.id ||
+                (c.sku && rm.sku.toLowerCase() === c.sku.toLowerCase()) ||
+                rm.name.toLowerCase() === c.rawMaterialName.toLowerCase()
+            );
+            if (comp) {
+              const req = comp.quantityUsed * targetQty;
               const prevBal = rm.currentStock;
-              const newBal = prevBal - req;
+              const newBal = Math.max(0, prevBal - req);
+
+              pDeductions.push({
+                rawMaterialId: rm.id,
+                sku: rm.sku,
+                rawMaterialName: rm.name,
+                quantity: req,
+              });
 
               // Log Raw Material Stock Transaction (Material Consumption)
               const tx: RawMaterialStockTransaction = {
@@ -4759,7 +5297,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 quantityOut: req,
                 previousBalance: prevBal,
                 newBalance: newBal,
-                user: pOrder.assignedEngineer || activeRole === 'ADMIN' ? 'Admin' : 'Production Engineer',
+                user: pOrder.assignedEngineer || (activeRole === 'ADMIN' ? 'Admin' : 'Production Engineer'),
               };
               setStockTransactions((st) => [tx, ...st]);
 
@@ -4786,10 +5324,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
 
         // Collect all deductions and persist to PostgreSQL database
-        const pDeductions = targetBOM.items.map((bi) => ({
-          rawMaterialId: bi.rawMaterialId,
-          quantity: Math.ceil(bi.quantity * (1 + (bi.wastagePercent || 0) / 100) * targetQty),
-        }));
         if (pDeductions.length > 0) {
           fetch('/api/raw-materials', {
             method: 'PUT',
@@ -5250,26 +5784,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const receivePurchaseOrder = (id: string) => {
-    const po = purchaseOrders.find((p) => p.id === id);
-    if (!po || po.status === 'Received') return;
-    setRawMaterials((prev) =>
-      prev.map((rm) => {
-        const item = po.items.find((i) => i.rawMaterialId === rm.id);
-        if (item) {
-          return {
-            ...rm,
-            currentStock: rm.currentStock + item.quantity,
-            lastRestocked: new Date().toISOString().split('T')[0],
-          };
-        }
-        return rm;
-      })
-    );
-    setPurchaseOrders((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'Received' } : p))
-    );
-  };
 
   // Dynamically calculate live current stock across all products based on opening, production, sales, returns, and adjustments
   const enrichedProducts = useMemo(() => {
@@ -5388,6 +5902,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createLeadFull,
         updateLeadFull,
         convertLeadToCustomer,
+        deleteLead,
+        clearAllLeads,
         createFollowUpFull,
         updateFollowUpStatusFull,
         quotations,
@@ -5418,6 +5934,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearAllSystemData,
         refreshProductsFromDB,
         refreshRawMaterialsFromDB,
+        refreshSalesOrdersFromDB,
 
         addRawMaterial,
         updateRawMaterial,

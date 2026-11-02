@@ -60,12 +60,14 @@ export default function SalesOrdersPage() {
     generateEntityCode,
     refreshProductsFromDB,
     refreshRawMaterialsFromDB,
+    refreshSalesOrdersFromDB,
   } = useERP();
 
-  // Fetch latest products and raw materials from database on load
+  // Fetch latest products, raw materials, and sales orders from database on load
   useEffect(() => {
     refreshProductsFromDB();
     refreshRawMaterialsFromDB();
+    refreshSalesOrdersFromDB?.();
   }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -1140,15 +1142,24 @@ export default function SalesOrdersPage() {
                                 if (first) {
                                   setPreviewImageModal({
                                     src: first,
-                                    title: `Sales Order ${so.orderNumber} - Production Photo Proof`,
+                                    title: `Sales Order ${so.orderNumber} - Production Photo Proof (1 of ${imagesCount})`,
                                   });
                                 }
                               }}
-                              className="group relative inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                              className="group relative inline-flex items-center gap-1.5 p-1 pr-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition shadow-2xs cursor-pointer"
                               title="Click to zoom uploaded product/packing photos"
                             >
-                              <Camera className="w-3.5 h-3.5 text-blue-600" />
-                              <span className="font-bold text-[11px]">{imagesCount}</span>
+                              {(so.productionImages?.[0] || so.packedImage) && (
+                                <img
+                                  src={so.productionImages?.[0] || so.packedImage}
+                                  alt="Production proof"
+                                  className="w-7 h-7 object-cover rounded-md border border-blue-200 shadow-2xs group-hover:scale-105 transition"
+                                />
+                              )}
+                              <div className="flex items-center gap-1">
+                                <Camera className="w-3.5 h-3.5 text-blue-600" />
+                                <span className="font-extrabold text-[11px] text-blue-800">{imagesCount}</span>
+                              </div>
                             </button>
                           </div>
                         ) : (

@@ -895,41 +895,78 @@ export default function ProductsPage() {
                   </div>
 
                   <div className="space-y-2.5 pt-1">
-                    {formData.rawMaterialQuantities.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl bg-white border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center shadow-sm"
-                      >
-                        <div className="sm:col-span-6">
-                          <label className="block text-slate-700 text-[10px] mb-1 font-semibold">Raw Material Component</label>
-                          <select
-                            value={item.rawMaterialId}
-                            onChange={(e) => handleRMSelectChange(idx, e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500 focus:bg-white"
-                          >
-                            {rawMaterials.filter((rm) => (rm.status || 'ACTIVE') === 'ACTIVE' || rm.id === item.rawMaterialId).length === 0 ? (
-                              <option value="">No Active Raw Materials Found</option>
-                            ) : (
-                              rawMaterials
-                                .filter((rm) => (rm.status || 'ACTIVE') === 'ACTIVE' || rm.id === item.rawMaterialId)
-                                .map((rm) => (
-                                  <option key={rm.id} value={rm.id}>
-                                    {rm.name} ({rm.sku}) — [{rm.category || 'Component'}] | Stock: {rm.currentStock} {rm.unit} | Cost: ₹{rm.unitCost}
-                                  </option>
-                                ))
-                            )}
-                          </select>
-                        </div>
+                    {formData.rawMaterialQuantities.map((item, idx) => {
+                      const liveRM = rawMaterials.find(
+                        (r) =>
+                          r.id === item.rawMaterialId ||
+                          r.sku === item.sku ||
+                          r.name.toLowerCase() === (item.rawMaterialName || '').toLowerCase()
+                      );
+                      const curStock = liveRM ? liveRM.currentStock : 0;
+                      const usedQty = Number(item.quantityUsed || 0);
+                      const updatedStock = Math.max(0, curStock - usedQty);
+                      const hasShortage = usedQty > curStock;
 
-                        <div className="sm:col-span-3">
-                          <label className="block text-slate-700 text-[10px] mb-1 font-semibold">Quantity Size / Used</label>
-                          <div className="flex items-center gap-1.5">
+                      return (
+                        <div
+                          key={idx}
+                          className="p-3 rounded-xl bg-white border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center shadow-sm"
+                        >
+                          <div className="sm:col-span-6">
+                            <label className="block text-slate-700 text-[10px] mb-1 font-semibold">Raw Material Component</label>
+                            <select
+                              value={item.rawMaterialId}
+                              onChange={(e) => handleRMSelectChange(idx, e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500 focus:bg-white"
+                            >
+                              {rawMaterials.filter((rm) => (rm.status || 'ACTIVE') === 'ACTIVE' || rm.id === item.rawMaterialId).length === 0 ? (
+                                <option value="">No Active Raw Materials Found</option>
+                              ) : (
+                                rawMaterials
+                                  .filter((rm) => (rm.status || 'ACTIVE') === 'ACTIVE' || rm.id === item.rawMaterialId)
+                                  .map((rm) => (
+                                    <option key={rm.id} value={rm.id}>
+                                      {rm.name} ({rm.sku}) — [{rm.category || 'Component'}] | Stock: {rm.currentStock} {rm.unit} | Cost: ₹{rm.unitCost}
+                                    </option>
+                                  ))
+                              )}
+                            </select>
+                          </div>
+
+                          <div className="sm:col-span-3">
+                            <label className="block text-slate-700 text-[10px] mb-1 font-semibold">Quantity Size / Used</label>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                placeholder="0"
+                                value={item.quantityUsed === 0 ? '' : item.quantityUsed}
+                                onKeyDown={(e) => {
+                                  if (e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+                                    e.preventDefault();
+                                  }
+                                }}
+                                onChange={(e) => {
+                                  const raw = e.target.value.replace(/[^0-9]/g, '');
+                                  const updated = [...formData.rawMaterialQuantities];
+                                  updated[idx].quantityUsed = raw === '' ? 0 : parseInt(raw, 10);
+                                  setFormData({ ...formData, rawMaterialQuantities: updated });
+                                }}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                              <span className="text-[11px] font-mono text-emerald-700 shrink-0 font-bold">{item.unit}</span>
+                            </div>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <label className="block text-slate-700 text-[10px] mb-1 font-semibold">Wastage %</label>
                             <input
                               type="number"
                               step="1"
                               min="0"
                               placeholder="0"
-                              value={item.quantityUsed === 0 ? '' : item.quantityUsed}
+                              value={item.wastagePercent === 0 ? '' : item.wastagePercent}
                               onKeyDown={(e) => {
                                 if (e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
                                   e.preventDefault();
@@ -938,50 +975,53 @@ export default function ProductsPage() {
                               onChange={(e) => {
                                 const raw = e.target.value.replace(/[^0-9]/g, '');
                                 const updated = [...formData.rawMaterialQuantities];
-                                updated[idx].quantityUsed = raw === '' ? 0 : parseInt(raw, 10);
+                                updated[idx].wastagePercent = raw === '' ? 0 : parseInt(raw, 10);
                                 setFormData({ ...formData, rawMaterialQuantities: updated });
                               }}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500 focus:bg-white no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
-                            <span className="text-[11px] font-mono text-emerald-700 shrink-0 font-bold">{item.unit}</span>
+                          </div>
+
+                          <div className="sm:col-span-1 text-right pt-4 sm:pt-0">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRMRow(idx)}
+                              className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200"
+                              title="Remove raw material component"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Real-time Calculation Display */}
+                          <div className="sm:col-span-12 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between text-[11px] gap-2 bg-slate-50/80 px-3 py-1.5 rounded-lg">
+                            <div className="flex items-center gap-1.5 text-slate-600">
+                              <span className="font-medium">Current Stock:</span>
+                              <span className="font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">
+                                {curStock} {item.unit}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-rose-600 font-bold">
+                              <span>Used in Production:</span>
+                              <span className="bg-rose-50 px-2 py-0.5 rounded border border-rose-200 shadow-sm">
+                                -{usedQty} {item.unit}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 font-extrabold text-emerald-700">
+                              <span>Updated Stock:</span>
+                              <span className={`px-2 py-0.5 rounded border shadow-sm ${hasShortage ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-emerald-50 text-emerald-700 border-emerald-300'}`}>
+                                {updatedStock} {item.unit}
+                              </span>
+                            </div>
+                            {hasShortage && (
+                              <span className="text-[10px] text-amber-700 font-bold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                ⚠️ Notice: Used quantity ({usedQty}) exceeds current stock ({curStock})
+                              </span>
+                            )}
                           </div>
                         </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="block text-slate-700 text-[10px] mb-1 font-semibold">Wastage %</label>
-                          <input
-                            type="number"
-                            step="1"
-                            min="0"
-                            placeholder="0"
-                            value={item.wastagePercent === 0 ? '' : item.wastagePercent}
-                            onKeyDown={(e) => {
-                              if (e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
-                                e.preventDefault();
-                              }
-                            }}
-                            onChange={(e) => {
-                              const raw = e.target.value.replace(/[^0-9]/g, '');
-                              const updated = [...formData.rawMaterialQuantities];
-                              updated[idx].wastagePercent = raw === '' ? 0 : parseInt(raw, 10);
-                              setFormData({ ...formData, rawMaterialQuantities: updated });
-                            }}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500 focus:bg-white no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-1 text-right pt-4 sm:pt-0">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveRMRow(idx)}
-                            className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200"
-                            title="Remove raw material component"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {formData.rawMaterialQuantities.length === 0 && (
                       <div className="p-4 text-center text-xs text-slate-500 border border-dashed border-slate-300 rounded-xl bg-white">
@@ -992,7 +1032,7 @@ export default function ProductsPage() {
                 </div>
 
                 {/* 3. Hardware & Vehicle Specifications */}
-                <div className="space-y-3 pt-2 border-t border-slate-200">
+                {/* <div className="space-y-3 pt-2 border-t border-slate-200">
                   <span className="text-xs font-bold text-blue-700 tracking-wide uppercase">3. Hardware & Vehicle Specifications</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -1040,7 +1080,7 @@ export default function ProductsPage() {
                       />
                     </div>
                   </div>
-                </div>
+                </div> */}
 
                 {/* 4. Stock Controls */}
                 <div className="space-y-3 pt-2 border-t border-slate-200">
@@ -1131,140 +1171,6 @@ export default function ProductsPage() {
                   </div>
                 </div>
 
-                {/* 6. Raw Material Component Quantities */}
-                <div className="space-y-3 pt-2 border-t border-slate-200">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <span className="text-xs font-bold text-purple-700 tracking-wide uppercase flex items-center gap-1.5">
-                        <Boxes className="w-4 h-4 text-purple-600" />
-                        6. Raw Material Component Quantities (Stored in DB)
-                      </span>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Select raw material components required for 1 unit of this finished product. Quantities must be whole numbers only without spinner arrows.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAddRMRow}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-bold transition self-start sm:self-auto cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add Component
-                    </button>
-                  </div>
-
-                  {formData.rawMaterialQuantities.length === 0 ? (
-                    <div className="p-3 bg-purple-50/50 border border-purple-100 rounded-xl text-center text-xs text-purple-700">
-                      No raw material components linked yet. Click &quot;Add Component&quot; to configure database raw materials used for manufacturing.
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {formData.rawMaterialQuantities.map((row, idx) => (
-                        <div
-                          key={idx}
-                          className="p-3 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center"
-                        >
-                          {/* Raw material select */}
-                          <div className="sm:col-span-4">
-                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                              Raw Material Component *
-                            </label>
-                            <select
-                              value={row.rawMaterialId}
-                              onChange={(e) => handleRMSelectChange(idx, e.target.value)}
-                              className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-purple-500"
-                            >
-                              {rawMaterials.map((rm) => (
-                                <option key={rm.id} value={rm.id}>
-                                  {rm.name} ({rm.sku}) - Stock: {rm.currentStock} {rm.unit}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Quantity used (whole number, no spinner) */}
-                          <div className="sm:col-span-3">
-                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                              Quantity Used (Whole Number) *
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                required
-                                placeholder="1"
-                                value={row.quantityUsed}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(/\D/g, '');
-                                  const num = val === '' ? 0 : parseInt(val, 10);
-                                  const updated = [...formData.rawMaterialQuantities];
-                                  updated[idx] = { ...updated[idx], quantityUsed: num };
-                                  setFormData({ ...formData, rawMaterialQuantities: updated });
-                                }}
-                                className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              />
-                              <span className="absolute right-2.5 top-1.5 text-[11px] font-bold text-slate-400">
-                                {row.unit || 'PCS'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Wastage % */}
-                          <div className="sm:col-span-2">
-                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                              Wastage %
-                            </label>
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              placeholder="0"
-                              value={row.wastagePercent}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '');
-                                const num = val === '' ? 0 : parseInt(val, 10);
-                                const updated = [...formData.rawMaterialQuantities];
-                                updated[idx] = { ...updated[idx], wastagePercent: num };
-                                setFormData({ ...formData, rawMaterialQuantities: updated });
-                              }}
-                              className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                          </div>
-
-                          {/* Notes */}
-                          <div className="sm:col-span-2">
-                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                              Notes
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="Notes..."
-                              value={row.notes}
-                              onChange={(e) => {
-                                const updated = [...formData.rawMaterialQuantities];
-                                updated[idx] = { ...updated[idx], notes: e.target.value };
-                                setFormData({ ...formData, rawMaterialQuantities: updated });
-                              }}
-                              className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-500"
-                            />
-                          </div>
-
-                          {/* Remove button */}
-                          <div className="sm:col-span-1 flex justify-center pt-4">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveRMRow(idx)}
-                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                              title="Remove component"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 bg-slate-50/80 px-6 py-4 -mx-6 -mb-6 mt-6 shrink-0">

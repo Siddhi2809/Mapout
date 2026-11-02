@@ -36,7 +36,7 @@ export default function AdminDispatchPage() {
         activeTab === 'all'
           ? true
           : activeTab === 'ready'
-          ? d.deliveryStatus === 'Ready' || d.deliveryStatus === 'READY_FOR_DISPATCH'
+          ? (d.deliveryStatus as string) === 'Ready' || (d.deliveryStatus as string) === 'READY_FOR_DISPATCH'
           : activeTab === 'dispatched'
           ? d.deliveryStatus === 'Dispatched'
           : d.deliveryStatus === 'Delivered';
@@ -226,8 +226,8 @@ export default function AdminDispatchPage() {
                 <div className="space-y-2">
                   <div className="font-bold text-slate-900">Consignment Items:</div>
                   <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
-                    {selectedDispatch.items.map((i) => (
-                      <div key={i.id} className="p-2.5 flex justify-between bg-slate-50/40">
+                    {selectedDispatch.items.map((i, idx) => (
+                      <div key={i.id || i.productId || idx} className="p-2.5 flex justify-between bg-slate-50/40">
                         <span className="font-semibold text-slate-800">{i.productName}</span>
                         <span className="font-bold text-slate-900">{i.dispatchQuantity} units</span>
                       </div>

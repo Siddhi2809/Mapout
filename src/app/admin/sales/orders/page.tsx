@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useERP } from '@/context/ERPContext';
 import { SalesOrder } from '@/types/erp';
 import {
@@ -23,13 +23,18 @@ import {
 } from 'lucide-react';
 
 export default function AdminSalesOrdersPage() {
-  const { salesOrders, updateSalesOrderStatusFull, sendSalesOrderToProduct } = useERP();
+  const { salesOrders, updateSalesOrderStatusFull, sendSalesOrderToProduct, refreshSalesOrdersFromDB } = useERP();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dispatchFilter, setDispatchFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+  const [previewImageModal, setPreviewImageModal] = useState<{ src: string; title: string } | null>(null);
+
+  useEffect(() => {
+    refreshSalesOrdersFromDB?.();
+  }, []);
 
   const filteredOrders = useMemo(() => {
     return salesOrders.filter((order) => {
@@ -139,13 +144,28 @@ export default function AdminSalesOrdersPage() {
                 <th className="px-4 py-3.5 text-right">Grand Total</th>
                 <th className="px-4 py-3.5 text-center">Payment Status</th>
                 <th className="px-4 py-3.5 text-center">Dispatch Status</th>
+                <th className="px-4 py-3.5 text-center">Photos</th>
                 <th className="px-5 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredOrders.map((order) => {
                 const totalItemsCount = order.items?.reduce((acc, i) => acc + (i.quantity || 0), 0) || 0;
-                const hasPackedProof = !!order.packedImage || order.items?.some((i) => !!i.productImage);
+                const allPhotos: string[] = [];
+                if (order.productionImages && Array.isArray(order.productionImages)) {
+                  allPhotos.push(...order.productionImages);
+                }
+                if (order.packedImage && !allPhotos.includes(order.packedImage)) {
+                  allPhotos.push(order.packedImage);
+                }
+                if (order.items) {
+                  order.items.forEach((i) => {
+                    if (i.productImage && !allPhotos.includes(i.productImage)) {
+                      allPhotos.push(i.productImage);
+                    }
+                  });
+                }
+                const hasPackedProof = allPhotos.length > 0;
 
                 return (
                   <tr key={order.id} className="hover:bg-slate-50/70 transition">
@@ -153,8 +173,8 @@ export default function AdminSalesOrdersPage() {
                       <div className="font-bold text-slate-900">{order.orderNumber}</div>
                       <div className="text-[11px] text-slate-500">{order.orderDate}</div>
                       {hasPackedProof && (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 mt-1 font-bold">
-                          <Camera className="w-3 h-3" /> Packed Photo Attached
+                        <span className="inline-flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 mt-1 font-bold">
+                          <Camera className="w-3 h-3 text-blue-600" /> {allPhotos.length} Photo{allPhotos.length > 1 ? 's' : ''} Attached
                         </span>
                       )}
                     </td>
@@ -209,6 +229,37 @@ export default function AdminSalesOrdersPage() {
                       </span>
                     </td>
 
+                    {/* Production Photos Column */}
+                    <td className="px-4 py-4 text-center">
+                      {allPhotos.length > 0 ? (
+                        <div className="flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewImageModal({
+                                src: allPhotos[0],
+                                title: `Order ${order.orderNumber} - Production Photo Proof (1 of ${allPhotos.length})`,
+                              });
+                            }}
+                            className="group relative inline-flex items-center gap-1.5 p-1 pr-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition shadow-2xs cursor-pointer"
+                            title="Click to view full-size production photo proof"
+                          >
+                            <img
+                              src={allPhotos[0]}
+                              alt="Production proof"
+                              className="w-7 h-7 object-cover rounded-md border border-blue-200 shadow-2xs group-hover:scale-105 transition"
+                            />
+                            <div className="flex items-center gap-1">
+                              <Camera className="w-3.5 h-3.5 text-blue-600" />
+                              <span className="font-extrabold text-[11px] text-blue-800">{allPhotos.length}</span>
+                            </div>
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">No photos</span>
+                      )}
+                    </td>
+
                     <td className="px-5 py-4 text-right">
                       <button
                         onClick={() => setSelectedOrder(order)}
@@ -222,7 +273,7 @@ export default function AdminSalesOrdersPage() {
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-400 text-xs">
+                  <td colSpan={8} className="p-8 text-center text-slate-400 text-xs">
                     No sales orders found matching criteria.
                   </td>
                 </tr>
@@ -284,42 +335,72 @@ export default function AdminSalesOrdersPage() {
               </div>
 
               {/* Product Team Photo & Packing Proof */}
-              {(selectedOrder.packedImage || selectedOrder.items?.some((i) => !!i.productImage)) && (
-                <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-2">
-                  <div className="font-bold text-emerald-900 flex items-center gap-1.5">
-                    <Camera className="w-4 h-4 text-emerald-600" />
-                    <span>Packing Photo & Factory Proof Attached</span>
-                  </div>
-                  <div className="flex gap-3 overflow-x-auto py-1">
-                    {selectedOrder.packedImage && (
-                      <img
-                        src={selectedOrder.packedImage}
-                        alt="Order Packing Proof"
-                        className="h-28 w-28 object-cover rounded-xl border border-emerald-300 shadow-sm"
-                      />
-                    )}
-                    {selectedOrder.items
-                      ?.filter((i) => !!i.productImage)
-                      .map((item, idx) => (
-                        <div key={idx} className="space-y-1">
-                          <img
-                            src={item.productImage!}
-                            alt={item.productName}
-                            className="h-28 w-28 object-cover rounded-xl border border-emerald-300 shadow-sm"
-                          />
-                          <div className="text-[10px] font-semibold text-emerald-800 truncate max-w-[112px]">
-                            {item.productName}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                  {selectedOrder.productTeamRemarks && (
-                    <div className="text-[11px] text-emerald-800 bg-white p-2 rounded-lg border border-emerald-200">
-                      <strong>Product Team Remarks:</strong> {selectedOrder.productTeamRemarks}
+              {(() => {
+                const modalPhotos: string[] = [];
+                if (selectedOrder.productionImages && Array.isArray(selectedOrder.productionImages)) {
+                  modalPhotos.push(...selectedOrder.productionImages);
+                }
+                if (selectedOrder.packedImage && !modalPhotos.includes(selectedOrder.packedImage)) {
+                  modalPhotos.push(selectedOrder.packedImage);
+                }
+                if (selectedOrder.items) {
+                  selectedOrder.items.forEach((item) => {
+                    if (item.productImage && !modalPhotos.includes(item.productImage)) {
+                      modalPhotos.push(item.productImage);
+                    }
+                  });
+                }
+
+                if (modalPhotos.length === 0 && !selectedOrder.productTeamRemarks) return null;
+
+                return (
+                  <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-blue-900 flex items-center gap-1.5">
+                        <Camera className="w-4 h-4 text-blue-600" />
+                        <span>Uploaded Photos From Production ({modalPhotos.length})</span>
+                      </div>
+                      <span className="text-[10px] text-blue-600 font-medium">Click photo to zoom</span>
                     </div>
-                  )}
-                </div>
-              )}
+
+                    {modalPhotos.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-blue-100">
+                        {modalPhotos.map((imgSrc, imgIdx) => (
+                          <div
+                            key={imgIdx}
+                            onClick={() =>
+                              setPreviewImageModal({
+                                src: imgSrc,
+                                title: `Order ${selectedOrder.orderNumber} - Production Photo ${imgIdx + 1} of ${modalPhotos.length}`,
+                              })
+                            }
+                            className="group relative rounded-xl overflow-hidden border border-slate-300 bg-slate-900 cursor-pointer shadow-sm hover:ring-2 hover:ring-blue-500 transition"
+                            title="Click to zoom image"
+                          >
+                            <img
+                              src={imgSrc}
+                              alt={`Production Proof ${imgIdx + 1}`}
+                              className="w-full h-24 object-cover group-hover:scale-105 transition"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                              <Eye className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="absolute bottom-1 left-1 bg-black/70 text-white px-1.5 py-0.5 rounded text-[9px] font-mono">
+                              Photo {imgIdx + 1}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedOrder.productTeamRemarks && (
+                      <div className="text-[11px] text-blue-950 bg-white p-2.5 rounded-xl border border-blue-200 shadow-2xs">
+                        <strong>Product Team Remarks:</strong> {selectedOrder.productTeamRemarks}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Admin Actions */}
               <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200 space-y-3">
@@ -363,6 +444,51 @@ export default function AdminSalesOrdersPage() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Zoom Lightbox Modal */}
+      {previewImageModal && (
+        <div
+          className="fixed inset-0 z-60 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setPreviewImageModal(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-3xl overflow-hidden border border-slate-700 shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-blue-400" />
+                <span className="font-bold text-xs">{previewImageModal.title}</span>
+              </div>
+              <button
+                onClick={() => setPreviewImageModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 flex items-center justify-center overflow-auto max-h-[calc(90vh-100px)] bg-slate-950">
+              <img
+                src={previewImageModal.src}
+                alt={previewImageModal.title}
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
+              />
+            </div>
+            <div className="p-3 bg-slate-900/90 border-t border-slate-800 flex justify-between items-center text-[11px] text-slate-400">
+              <span>Production & Packing Image Proof</span>
+              <a
+                href={previewImageModal.src}
+                download={`production-photo-${Date.now()}.jpg`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-400 hover:text-blue-300 font-bold hover:underline"
+              >
+                Open Full Size
+              </a>
             </div>
           </div>
         </div>
