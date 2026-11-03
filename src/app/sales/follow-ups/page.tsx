@@ -722,146 +722,86 @@ export default function FollowUpsPage() {
                   setEndDate(e.target.value);
                   if (datePreset !== 'CUSTOM' && e.target.value) setDatePreset('ALL');
                 }}
-                className="bg-transparent text-slate-800 font-medium focus:outline-none"
+                className="bg-transparent text-slate-800 font-medium focus:outline-none cursor-pointer"
                 title="To Follow-up Date"
               />
-            </div>
-
-            {/* Date Presets */}
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-slate-500 font-bold mr-1">Presets:</span>
-              {(['ALL', 'TODAY', 'TOMORROW', 'THIS_WEEK', 'NEXT_WEEK', 'CUSTOM'] as const).map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => {
-                    setDatePreset(preset);
-                    if (preset !== 'CUSTOM' && preset !== 'ALL') {
-                      setStartDate('');
-                      setEndDate('');
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${
-                    datePreset === preset
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {preset === 'ALL'
-                    ? 'All'
-                    : preset === 'TODAY'
-                    ? 'Today'
-                    : preset === 'TOMORROW'
-                    ? 'Tomorrow'
-                    : preset === 'THIS_WEEK'
-                    ? 'This Week'
-                    : preset === 'NEXT_WEEK'
-                    ? 'Next Week'
-                    : 'Custom'}
-                </button>
-              ))}
-
-              {datePreset === 'CUSTOM' && (
-                <input
-                  type="date"
-                  value={customDate}
-                  onChange={(e) => setCustomDate(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                />
-              )}
             </div>
           </div>
 
           {/* Secondary Filters row */}
-          <div className="flex flex-wrap items-center gap-3 pt-2.5 border-t border-slate-100 text-xs">
-            <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
-              <Filter className="w-3.5 h-3.5 text-slate-500" /> Type:
-            </div>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-            >
-              <option value="ALL">All Types</option>
-              <option value="Call">Call</option>
-              <option value="WhatsApp">WhatsApp</option>
-              <option value="Email">Email</option>
-              <option value="Meeting">Meeting</option>
-              <option value="Other">Other</option>
-            </select>
-
-            <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
-              <span>Status:</span>
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="Pending">Pending</option>
-              <option value="Completed">Completed</option>
-              <option value="Overdue">Overdue</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-
-            <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
-              <MapPin className="w-3.5 h-3.5 text-slate-500" /> City:
-            </div>
-            <select
-              value={cityFilter}
-              onChange={(e) => setCityFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-            >
-              <option value="ALL">All Cities ({availableCities.length})</option>
-              {availableCities.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </select>
-
-            {salespersons.length > 0 && (
-              <>
-                <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
-                  <span>Salesperson:</span>
-                </div>
-                <select
-                  value={salespersonFilter}
-                  onChange={(e) => setSalespersonFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                >
-                  <option value="ALL">All Salespersons</option>
-                  {salespersons.map((sp) => (
-                    <option key={sp} value={sp}>
-                      {sp}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-
-            {(startDate || endDate || cityFilter !== 'ALL' || datePreset !== 'ALL' || customDate || typeFilter !== 'ALL' || statusFilter !== 'ALL' || salespersonFilter !== 'ALL' || searchQuery) && (
-              <button
-                onClick={() => {
-                  setStartDate('');
-                  setEndDate('');
-                  setCityFilter('ALL');
-                  setDatePreset('ALL');
-                  setCustomDate('');
-                  setTypeFilter('ALL');
-                  setStatusFilter('ALL');
-                  setSalespersonFilter('ALL');
-                  setSearchQuery('');
-                }}
-                className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer text-xs ml-1"
-                title="Clear all filters"
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
+                <Filter className="w-3.5 h-3.5 text-slate-500" /> Type:
+              </div>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
               >
-                <X className="w-3.5 h-3.5" /> Clear Filters
-              </button>
-            )}
+                <option value="ALL">All Types</option>
+                <option value="Call">Call</option>
+                <option value="WhatsApp">WhatsApp</option>
+                <option value="Email">Email</option>
+                <option value="Meeting">Meeting</option>
+                <option value="Other">Other</option>
+              </select>
 
-            <div className="ml-auto text-[11px] text-slate-500 font-medium">
-              Showing <strong className="text-slate-800">{filteredFollowUps.length}</strong> follow-ups
+              <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
+                <span>Status:</span>
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Completed">Completed</option>
+                <option value="Overdue">Overdue</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+
+              <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
+                <MapPin className="w-3.5 h-3.5 text-slate-500" /> City:
+              </div>
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
+              >
+                <option value="ALL">All Cities ({availableCities.length})</option>
+                {availableCities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
+
+              {(startDate || endDate || cityFilter !== 'ALL' || datePreset !== 'ALL' || customDate || typeFilter !== 'ALL' || statusFilter !== 'ALL' || salespersonFilter !== 'ALL' || searchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    setCityFilter('ALL');
+                    setDatePreset('ALL');
+                    setCustomDate('');
+                    setTypeFilter('ALL');
+                    setStatusFilter('ALL');
+                    setSalespersonFilter('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer text-xs ml-1"
+                  title="Clear all filters"
+                >
+                  <X className="w-3.5 h-3.5" /> Clear Filters
+                </button>
+              )}
+            </div>
+
+            <div className="text-[11px] text-slate-500 font-medium ml-auto">
+              Displaying <strong className="text-slate-800">{filteredFollowUps.length}</strong> of {followUps.length} follow-ups
             </div>
           </div>
         </div>
@@ -872,15 +812,15 @@ export default function FollowUpsPage() {
             <table className="w-full text-left text-xs table-fixed">
               <thead>
                 <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold text-[11px]">
-                  <th className="py-2.5 px-3 w-[18%]">Category & Customer</th>
-                  <th className="py-2.5 px-2 w-[13%]">Contact Details</th>
-                  <th className="py-2.5 px-2 w-[10%]">Quotation Ref</th>
+                  <th className="py-2.5 px-2.5 w-[16%]">Category & Customer</th>
+                  <th className="py-2.5 px-2 w-[12%]">Contact Details</th>
+                  <th className="py-2.5 px-2 w-[11%]">Quotation Ref</th>
                   <th className="py-2.5 px-2 w-[10%]">Date & Time</th>
-                  <th className="py-2.5 px-2 w-[11%]">Type & Purpose</th>
-                  <th className="py-2.5 px-3 w-[18%]">Response / Notes</th>
+                  <th className="py-2.5 px-2 w-[10%]">Type & Purpose</th>
+                  <th className="py-2.5 px-2.5 w-[17%]">Response / Notes</th>
                   <th className="py-2.5 px-2 w-[8%]">Next Date</th>
-                  <th className="py-2.5 px-2 text-center w-[6%]">Status</th>
-                  <th className="py-2.5 px-2 text-center w-[6%]">Actions</th>
+                  <th className="py-2.5 px-1.5 text-center w-[8%]">Status</th>
+                  <th className="py-2.5 px-1.5 text-center w-[8%]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -891,33 +831,36 @@ export default function FollowUpsPage() {
                   const isToday = fDate === todayStr;
 
                   return (
-                    <tr key={f.id} className="hover:bg-slate-50/80 transition">
-                      <td className="p-3.5 max-w-[200px]">
-                        <div className="flex items-center gap-1.5 mb-1">
+                    <tr key={f.id} className="hover:bg-slate-50/70 transition">
+                      {/* Category & Customer */}
+                      <td className="py-2.5 px-2.5 align-middle overflow-hidden">
+                        <div className="flex items-center gap-1 mb-0.5">
                           {isConverted ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                              Converted Customer
+                            <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shrink-0">
+                              Converted
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              Active Lead
+                            <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                              Lead
                             </span>
                           )}
                           {f.customerNumber && (
-                            <span className="font-mono text-[10px] font-bold text-blue-700">
+                            <span className="font-mono text-[9.5px] font-bold text-blue-700 shrink-0">
                               {f.customerNumber}
                             </span>
                           )}
                         </div>
-                        <div className="font-bold text-slate-900 truncate">
+                        <div className="font-bold text-slate-900 truncate text-xs" title={f.companyName || f.customerName}>
                           {f.companyName || f.customerName}
                         </div>
                         {f.companyName && f.customerName && f.companyName !== f.customerName && (
-                          <div className="text-[10px] text-slate-500">{f.customerName}</div>
+                          <div className="text-[10px] text-slate-500 truncate leading-none mt-0.5" title={f.customerName}>
+                            {f.customerName}
+                          </div>
                         )}
                         {(getFollowUpCity(f) || (f as any).state) && (
                           <div
-                            className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mt-0.5"
+                            className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mt-0.5 leading-none truncate"
                             title={(f as any).address ? `Address: ${(f as any).address}` : undefined}
                           >
                             <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
@@ -928,83 +871,105 @@ export default function FollowUpsPage() {
                         )}
                       </td>
 
-                      <td className="p-3.5 text-slate-600">
+                      {/* Contact Details */}
+                      <td className="py-2.5 px-2 align-middle overflow-hidden text-slate-600">
                         {f.contactPerson && (
-                          <div className="font-semibold text-slate-800">{f.contactPerson}</div>
+                          <div className="font-semibold text-slate-800 text-xs truncate" title={f.contactPerson}>
+                            {f.contactPerson}
+                          </div>
                         )}
                         {f.mobile && (
-                          <div className="font-mono text-[11px] text-blue-700">{f.mobile}</div>
+                          <div className="font-mono text-[11px] text-blue-700 font-medium leading-tight truncate">
+                            {f.mobile}
+                          </div>
                         )}
                         {f.alternateMobile && (
-                          <div className="font-mono text-[10px] text-slate-500">
+                          <div className="font-mono text-[9.5px] text-slate-500 leading-none mt-0.5 truncate">
                             Alt: {f.alternateMobile}
                           </div>
                         )}
-                        {f.email && <div className="text-[10px] text-slate-500">{f.email}</div>}
-                      </td>
-
-                      <td className="p-3.5">
-                        {f.quotationNumber ? (
-                          <Link
-                            href="/sales/quotations"
-                            className="font-mono text-purple-700 font-bold hover:underline inline-flex items-center gap-1"
-                          >
-                            <span>{f.quotationNumber}</span>
-                            <ExternalLink className="w-3 h-3 text-purple-400" />
-                          </Link>
-                        ) : (
-                          <span className="text-slate-400">—</span>
+                        {f.email && (
+                          <div className="text-[10px] text-slate-500 truncate leading-none mt-0.5" title={f.email}>
+                            {f.email}
+                          </div>
                         )}
                       </td>
 
-                      <td className="p-3.5">
-                        <div className="font-mono font-bold text-slate-900 flex items-center gap-1">
+                      {/* Quotation Ref */}
+                      <td className="py-2.5 px-2 align-middle overflow-hidden">
+                        {f.quotationNumber ? (
+                          <div className="w-full min-w-0 overflow-hidden">
+                            <Link
+                              href={`/sales/quotations?search=${encodeURIComponent(f.quotationNumber)}`}
+                              className="font-mono text-purple-700 font-bold hover:underline inline-flex items-center gap-0.5 text-[10.5px] max-w-full min-w-0"
+                              title={f.quotationNumber}
+                            >
+                              <span className="truncate min-w-0">{f.quotationNumber}</span>
+                              <ExternalLink className="w-3 h-3 text-purple-400 shrink-0" />
+                            </Link>
+                          </div>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
+
+                      {/* Date & Time */}
+                      <td className="py-2.5 px-2 align-middle overflow-hidden whitespace-nowrap">
+                        <div className="font-mono font-bold text-slate-900 flex items-center gap-1 text-[11px]">
                           <span>{f.followUpDate}</span>
                           {isToday && (
-                            <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded text-[9px] font-bold">
+                            <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded text-[9px] font-bold shrink-0">
                               Today
                             </span>
                           )}
                         </div>
-                        <div className="text-[10px] text-slate-500">{f.followUpTime || '11:00 AM'}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          Rep: <strong>{f.salesperson || f.assignedUser || 'Sales Person'}</strong>
+                        <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-none">
+                          {f.followUpTime || '11:00 AM'}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 truncate leading-none" title={f.salesperson || f.assignedUser || 'Sales Person'}>
+                          Rep: <strong className="text-slate-600 font-semibold">{f.salesperson || f.assignedUser || 'Sales Person'}</strong>
                         </div>
                       </td>
 
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                      {/* Type & Purpose */}
+                      <td className="py-2.5 px-2 align-middle overflow-hidden">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
                           {getTypeIcon(f.followUpType)}
                           <span>{f.followUpType || 'Call'}</span>
                         </div>
                         {f.purpose && (
-                          <div className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">{f.purpose}</div>
+                          <div className="text-[10.5px] text-slate-500 mt-0.5 truncate leading-none" title={f.purpose}>
+                            {f.purpose}
+                          </div>
                         )}
                       </td>
 
-                      <td className="p-3.5 max-w-[240px]">
+                      {/* Response / Notes */}
+                      <td className="py-2.5 px-2.5 align-middle overflow-hidden">
                         {f.requirement && (
-                          <div className="text-[11px] font-semibold text-blue-800 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200 mb-1 inline-block truncate max-w-full">
+                          <div className="text-[10px] font-semibold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 mb-0.5 inline-block truncate max-w-full" title={`Req: ${f.requirement}`}>
                             Req: {f.requirement}
                           </div>
                         )}
                         {f.expectedValue !== undefined && Number(f.expectedValue) > 0 && (
-                          <div className="text-[10px] font-mono font-bold text-emerald-700 mb-0.5">
-                            Exp. Value: ₹{Number(f.expectedValue).toLocaleString('en-IN')}
+                          <div className="text-[10px] font-mono font-bold text-emerald-700 mb-0.5 leading-none">
+                            Exp: ₹{Number(f.expectedValue).toLocaleString('en-IN')}
                           </div>
                         )}
-                        <div className="text-slate-700 text-xs font-medium line-clamp-2">
-                          {f.notes || <span className="text-slate-400 italic">No notes recorded yet</span>}
+                        <div className="text-slate-700 text-[11px] font-medium truncate" title={f.notes || ''}>
+                          {f.notes || <span className="text-slate-400 italic">No notes</span>}
                         </div>
                       </td>
 
-                      <td className="p-3.5 font-mono text-slate-600">
-                        {f.nextFollowUpDate || '—'}
+                      {/* Next Date */}
+                      <td className="py-2.5 px-2 align-middle overflow-hidden whitespace-nowrap font-mono text-[11px] text-slate-600">
+                        {f.nextFollowUpDate || <span className="text-slate-300">—</span>}
                       </td>
 
-                      <td className="p-3.5 text-center">
+                      {/* Status */}
+                      <td className="py-2.5 px-1.5 text-center align-middle overflow-hidden">
                         <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap max-w-full truncate ${
                             f.status === 'Completed'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                               : isOverdue
@@ -1013,28 +978,30 @@ export default function FollowUpsPage() {
                               ? 'bg-blue-50 text-blue-800 border-blue-300'
                               : 'bg-slate-100 text-slate-700 border-slate-300'
                           }`}
+                          title={isOverdue ? 'Overdue' : f.status}
                         >
                           {isOverdue ? 'Overdue' : f.status}
                         </span>
                       </td>
 
-                      <td className="py-2.5 px-2 text-center overflow-hidden">
+                      {/* Actions */}
+                      <td className="py-2.5 px-1.5 text-center align-middle overflow-hidden">
                         <div className="flex items-center justify-center gap-1">
                           {f.status !== 'Completed' ? (
                             <button
                               type="button"
                               onClick={() => handleOpenResponseModal(f)}
-                              className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition"
+                              className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition whitespace-nowrap"
                               title="Record Customer Response & Outcome"
                             >
-                              <MessageSquare className="w-3 h-3" />
+                              <MessageSquare className="w-3 h-3 shrink-0" />
                               <span>Outcome</span>
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={() => handleOpenResponseModal(f)}
-                              className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[10px] cursor-pointer transition border border-slate-200"
+                              className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[10px] cursor-pointer transition border border-slate-200 whitespace-nowrap"
                               title="Update Follow-up Outcome"
                             >
                               Update

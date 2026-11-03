@@ -79,6 +79,8 @@ export default function QuotationsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusTab, setStatusTab] = useState<'ALL' | QuotationStatus>('ALL');
   const [paymentModeFilter, setPaymentModeFilter] = useState<'ALL' | 'COD' | 'Prepaid'>('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -532,6 +534,30 @@ export default function QuotationsPage() {
         return false;
       }
 
+      // Date Range Filter (From - To)
+      const parseDateForFilter = (dateStr?: string) => {
+        if (!dateStr) return '';
+        const clean = dateStr.trim().split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+          const [d, m, y] = clean.split('/');
+          return `${y}-${m}-${d}`;
+        }
+        const parsed = new Date(clean);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toISOString().split('T')[0];
+        }
+        return clean;
+      };
+
+      const qDate = parseDateForFilter(q.quotationDate);
+      if (startDate && qDate && qDate < startDate) {
+        return false;
+      }
+      if (endDate && qDate && qDate > endDate) {
+        return false;
+      }
+
       // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
@@ -544,7 +570,7 @@ export default function QuotationsPage() {
 
       return true;
     });
-  }, [quotations, statusTab, paymentModeFilter, searchQuery]);
+  }, [quotations, statusTab, paymentModeFilter, startDate, endDate, searchQuery]);
 
   // Statistics KPI counts
   const stats = useMemo(() => {
@@ -775,9 +801,9 @@ export default function QuotationsPage() {
 
         {/* Filter Tabs & Search Bar */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             {/* Status Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
               {(
                 [
                   'ALL',
@@ -788,11 +814,11 @@ export default function QuotationsPage() {
                   'Packed',
                   'Ready for Dispatch',
                   'Dispatched',
-                 
                 ] as const
               ).map((tab) => (
                 <button
                   key={tab}
+                  type="button"
                   onClick={() => setStatusTab(tab)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                     statusTab === tab
@@ -811,12 +837,49 @@ export default function QuotationsPage() {
               ))}
             </div>
 
-            {/* Payment Mode Filter & Search Input */}
+            {/* Search Input */}
+            <div className="relative w-full lg:w-72">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search Quote #, Customer, Product..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition"
+              />
+            </div>
+          </div>
+
+          {/* Secondary Filter Row: Date Range & Clear */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs">
             <div className="flex flex-wrap items-center gap-2.5">
-              {/* <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+              {/* Date Filter (From - To) */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-700">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span className="text-slate-500 font-medium">From:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-transparent text-slate-800 font-medium focus:outline-none cursor-pointer"
+                  title="From Quotation Date"
+                />
+                <span className="text-slate-400 font-medium mx-1">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-transparent text-slate-800 font-medium focus:outline-none cursor-pointer"
+                  title="To Quotation Date"
+                />
+              </div>
+
+              {/* Payment Mode Filter */}
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                 {(['ALL', 'COD', 'Prepaid'] as const).map((mode) => (
                   <button
                     key={mode}
+                    type="button"
                     onClick={() => setPaymentModeFilter(mode)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
                       paymentModeFilter === mode
@@ -831,19 +894,29 @@ export default function QuotationsPage() {
                     <span>{mode === 'ALL' ? 'All Payment' : mode}</span>
                   </button>
                 ))}
-              </div> */}
-
-              {/* Search Input */}
-              <div className="relative w-full sm:w-64">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search Quote #, Customer, Product..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition"
-                />
               </div>
+
+              {/* Clear Filters */}
+              {(startDate || endDate || statusTab !== 'ALL' || paymentModeFilter !== 'ALL' || searchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    setStatusTab('ALL');
+                    setPaymentModeFilter('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer text-xs"
+                  title="Reset all filters"
+                >
+                  <X className="w-3.5 h-3.5" /> Clear Filters
+                </button>
+              )}
+            </div>
+
+            <div className="text-[11px] text-slate-500 font-medium ml-auto">
+              Displaying <strong className="text-slate-800">{filteredQuotations.length}</strong> of {quotations.length} quotations
             </div>
           </div>
         </div>

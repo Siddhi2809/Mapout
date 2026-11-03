@@ -510,120 +510,22 @@ export default function CODOrdersPage() {
               </div>
             </div>
           </div>
-
-          {/* Secondary Filters row */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs">
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Type Filter Buttons */}
-              <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setTypeFilter('ALL')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    typeFilter === 'ALL'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  All COD ({allCodOrders.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTypeFilter('ORDERS')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    typeFilter === 'ORDERS'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Orders ({stats.totalSalesOrdersCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTypeFilter('QUOTATIONS')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-                    typeFilter === 'QUOTATIONS'
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <FileCheck className="w-3.5 h-3.5" />
-                  <span>Quotes ({stats.totalQuotationsCount})</span>
-                </button>
-              </div>
-
-              {/* Collection Status */}
-              <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
-                <Filter className="w-3.5 h-3.5 text-slate-500" /> COD Collection:
-              </div>
-              <select
-                value={collectionFilter}
-                onChange={(e) => setCollectionFilter(e.target.value as any)}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
-              >
-                <option value="ALL">All Collection States ({allCodOrders.length})</option>
-                <option value="PENDING">Pending Collection ({stats.pendingOrdersCount})</option>
-                <option value="COLLECTED">Collected / Paid ({stats.collectedOrdersCount})</option>
-              </select>
-
-              {/* Delivery Status */}
-              <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
-                <span>Delivery:</span>
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
-              >
-                <option value="ALL">All Delivery Statuses</option>
-                <option value="Confirmed">Confirmed</option>
-                <option value="Sent to Production">In Production</option>
-                <option value="Packed">Packed</option>
-                <option value="Ready for Dispatch">Ready for Dispatch</option>
-                <option value="Dispatched">Dispatched / In Transit</option>
-                <option value="Delivered">Delivered</option>
-              </select>
-
-              {/* Clear filters */}
-              {(startDate || endDate || cityFilter !== 'ALL' || statusFilter !== 'ALL' || collectionFilter !== 'ALL' || searchQuery || typeFilter !== 'ALL') && (
-                <button
-                  onClick={() => {
-                    setStartDate('');
-                    setEndDate('');
-                    setCityFilter('ALL');
-                    setStatusFilter('ALL');
-                    setCollectionFilter('ALL');
-                    setSearchQuery('');
-                    setTypeFilter('ALL');
-                  }}
-                  className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer text-xs ml-1"
-                  title="Clear all filters"
-                >
-                  <X className="w-3.5 h-3.5" /> Clear Filters
-                </button>
-              )}
-            </div>
-
-            <div className="text-[11px] text-slate-500 font-medium ml-auto">
-              Displaying <strong className="text-slate-800">{filteredCodOrders.length}</strong> of {allCodOrders.length} COD items
-            </div>
-          </div>
         </div>
 
         {/* COD Orders Table */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-hidden">
+            <table className="w-full text-left text-xs table-fixed">
               <thead>
                 <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold text-[11px]">
-                  <th className="p-3.5">COD Order & Invoice</th>
-                  <th className="p-3.5">Customer & City</th>
-                  <th className="p-3.5">Order Date & Due</th>
-                  <th className="p-3.5">Items Summary</th>
-                  <th className="p-3.5 text-right">COD Amount</th>
-                  <th className="p-3.5 text-center">Delivery Status</th>
-                  <th className="p-3.5 text-center">COD Collection</th>
-                  <th className="p-3.5 text-center">Actions</th>
+                  <th className="py-2.5 px-2.5 w-[14%]">COD Order & Invoice</th>
+                  <th className="py-2.5 px-2.5 w-[15%]">Customer & City</th>
+                  <th className="py-2.5 px-2 w-[9%]">Order Date & Due</th>
+                  <th className="py-2.5 px-2.5 w-[17%]">Items Summary</th>
+                  <th className="py-2.5 px-2.5 text-right font-bold w-[10%]">COD Amount</th>
+                  <th className="py-2.5 px-1.5 text-center w-[11%]">Delivery Status</th>
+                  <th className="py-2.5 px-1.5 text-center w-[12%]">COD Collection</th>
+                  <th className="py-2.5 px-1.5 text-center w-[12%]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -664,31 +566,36 @@ export default function CODOrdersPage() {
                     const pendingCash = Math.max(0, (so.grandTotal || 0) - (so.amountPaid || 0));
 
                     return (
-                      <tr key={so.id} className="hover:bg-slate-50/80 transition">
+                      <tr key={so.id} className="hover:bg-slate-50/70 transition">
                         {/* Order & Invoice */}
-                        <td className="p-3.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono text-blue-700 font-bold">{so.orderNumber}</span>
-                            {so.isQuotationOnly ? (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300">
-                                <FileCheck className="w-3 h-3 text-purple-600" />
-                                <span>Quotation</span>
+                        <td className="py-2.5 px-2.5 align-middle overflow-hidden">
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono text-blue-700 font-bold text-xs truncate" title={so.orderNumber}>
+                              {so.orderNumber}
+                            </span>
+                            {so.isQuotationOnly && (
+                              <span className="inline-flex items-center px-1 py-0.2 rounded text-[9px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 shrink-0">
+                                Quote
                               </span>
-                            ) : null}
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
-                              <HandCoins className="w-3 h-3 text-amber-600" />
+                            )}
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                              <HandCoins className="w-2.5 h-2.5 text-amber-600 shrink-0" />
                               <span>COD</span>
                             </span>
                           </div>
                           {so.invoiceNumber && (
-                            <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                            <div className="text-[10px] font-mono text-slate-500 leading-none mt-0.5 truncate">
                               Inv: {so.invoiceNumber}
                             </div>
                           )}
                           {!so.isQuotationOnly && so.quotationNumber && (
-                            <div className="text-[10px] font-mono text-purple-700 mt-0.5 flex items-center gap-1">
-                              <span>QT:</span>
-                              <Link href={`/sales/quotations?search=${encodeURIComponent(so.quotationNumber)}`} className="hover:underline">
+                            <div className="text-[10px] font-mono text-purple-700 leading-none mt-0.5 flex items-center gap-1 overflow-hidden">
+                              <span className="shrink-0 text-slate-400">QT:</span>
+                              <Link
+                                href={`/sales/quotations?search=${encodeURIComponent(so.quotationNumber)}`}
+                                className="hover:underline truncate text-purple-700 font-medium"
+                                title={so.quotationNumber}
+                              >
                                 {so.quotationNumber}
                               </Link>
                             </div>
@@ -696,65 +603,83 @@ export default function CODOrdersPage() {
                         </td>
 
                         {/* Customer & City */}
-                        <td className="p-3.5 max-w-[190px]">
-                          <div className="font-bold text-slate-900 truncate">
+                        <td className="py-2.5 px-2.5 align-middle overflow-hidden">
+                          <div className="font-bold text-slate-900 truncate text-xs" title={so.customerName}>
                             {so.customerName}
                           </div>
-                          <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                          <div
+                            className="text-[10.5px] text-slate-500 truncate mt-0.5 leading-none"
+                            title={`${cust?.contactPerson || 'Contact'} • ${cust?.mobile || 'No Mobile'}`}
+                          >
                             {cust?.contactPerson || 'Contact'} • {cust?.mobile || 'No Mobile'}
                           </div>
                           {cust?.city && (
-                            <div className="flex items-center gap-1 text-[10px] text-slate-600 font-medium mt-0.5">
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mt-0.5 leading-none truncate">
                               <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span>{cust.city}</span>
+                              <span className="truncate">{cust.city}</span>
                             </div>
                           )}
                         </td>
 
                         {/* Order Date & Due */}
-                        <td className="p-3.5 whitespace-nowrap text-slate-600">
-                          <div className="font-bold text-slate-900">{so.orderDate}</div>
-                          <div className="text-[10px] text-slate-400">Due: {so.dueDate || so.expectedDelivery || '-'}</div>
-                          <div className="text-[10px] text-slate-500 mt-0.5">
-                            Rep: {so.salesperson || 'Rajesh Kumar'}
+                        <td className="py-2.5 px-2 align-middle overflow-hidden whitespace-nowrap text-slate-600">
+                          <div className="font-mono text-xs font-bold text-slate-900 leading-tight">{so.orderDate}</div>
+                          <div className="text-[10px] text-slate-400 font-mono leading-none mt-0.5">
+                            Due: {so.dueDate || so.expectedDelivery || '-'}
+                          </div>
+                          <div className="text-[10px] text-slate-500 truncate mt-0.5 leading-none" title={so.salesperson || 'Rajesh Kumar'}>
+                            {so.salesperson || 'Rajesh Kumar'}
                           </div>
                         </td>
 
                         {/* Items Summary */}
-                        <td className="p-3.5 max-w-[200px]">
-                          <div className="font-medium text-slate-800 truncate">
-                            {so.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ')}
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                            {so.items.length} {so.items.length === 1 ? 'item' : 'items'}
-                          </div>
+                        <td className="py-2.5 px-2.5 align-middle overflow-hidden">
+                          {(() => {
+                            const summaryText = so.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ');
+                            return (
+                              <div className="w-full overflow-hidden">
+                                <div className="font-medium text-slate-800 truncate text-xs leading-tight" title={summaryText}>
+                                  {summaryText}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-semibold mt-0.5 leading-none">
+                                  {so.items.length} {so.items.length === 1 ? 'item' : 'items'}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* COD Amount */}
-                        <td className="p-3.5 text-right whitespace-nowrap">
-                          <div className="font-black text-slate-900 text-sm">
-                            ₹{so.grandTotal.toLocaleString('en-IN')}
+                        <td className="py-2.5 px-2.5 text-right align-middle overflow-hidden whitespace-nowrap">
+                          <div className="font-black font-mono text-slate-900 text-xs">
+                            ₹{so.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 1 })}
                           </div>
                           {isPaid ? (
-                            <div className="text-[10px] font-bold text-emerald-700 mt-0.5">
+                            <div className="text-[9.5px] font-bold text-emerald-700 mt-0.5 leading-none">
                               ✓ Paid in Full
                             </div>
                           ) : (
-                            <div className="text-[10px] font-bold text-amber-700 mt-0.5">
-                              To Collect: ₹{pendingCash.toLocaleString('en-IN')}
+                            <div
+                              className="text-[9.5px] font-bold text-amber-700 font-mono mt-0.5 leading-none"
+                              title={`Pending: ₹${pendingCash.toLocaleString('en-IN')}`}
+                            >
+                              Due: ₹{pendingCash.toLocaleString('en-IN')}
                             </div>
                           )}
                         </td>
 
                         {/* Delivery Status */}
-                        <td className="p-3.5 text-center whitespace-nowrap">
+                        <td className="py-2.5 px-1.5 text-center align-middle overflow-hidden">
                           {so.isQuotationOnly ? (
-                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold border bg-purple-50 text-purple-800 border-purple-200">
-                              Quote: {so.quotationStatus || so.orderStatus}
+                            <span
+                              className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-purple-50 text-purple-800 border-purple-200 whitespace-nowrap inline-block max-w-full truncate"
+                              title={so.quotationStatus || so.orderStatus}
+                            >
+                              {so.quotationStatus || so.orderStatus}
                             </span>
                           ) : (
                             <span
-                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap inline-block max-w-full truncate ${
                                 so.dispatchStatus === 'DELIVERED' || so.orderStatus === 'Delivered'
                                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                   : so.dispatchStatus === 'DISPATCHED' || so.orderStatus === 'Dispatched'
@@ -767,6 +692,15 @@ export default function CODOrdersPage() {
                                   ? 'bg-cyan-100 text-cyan-800 border-cyan-300'
                                   : 'bg-slate-100 text-slate-700 border-slate-300'
                               }`}
+                              title={
+                                so.dispatchStatus === 'DELIVERED' || so.orderStatus === 'Delivered'
+                                  ? 'Delivered'
+                                  : so.dispatchStatus === 'DISPATCHED' || so.orderStatus === 'Dispatched'
+                                  ? 'Dispatched'
+                                  : so.orderStatus === 'Ready for Dispatch'
+                                  ? 'Ready for Dispatch'
+                                  : so.orderStatus || 'Confirmed'
+                              }
                             >
                               {so.dispatchStatus === 'DELIVERED' || so.orderStatus === 'Delivered'
                                 ? 'Delivered'
@@ -780,23 +714,23 @@ export default function CODOrdersPage() {
                         </td>
 
                         {/* COD Collection Status */}
-                        <td className="p-3.5 text-center whitespace-nowrap">
+                        <td className="py-2.5 px-1.5 text-center align-middle overflow-hidden">
                           {isPaid ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Cash Collected</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>Collected</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
-                              <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              <span>Awaiting Collection</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">
+                              <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>Awaiting Cash</span>
                             </span>
                           )}
                         </td>
 
                         {/* Actions */}
-                        <td className="p-3.5 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="py-2.5 px-1.5 text-center align-middle overflow-hidden">
+                          <div className="flex items-center justify-center gap-1">
                             {so.isQuotationOnly && (so.quotationStatus === 'Customer Approved' || so.quotationStatus === 'Approved') && (
                               <button
                                 onClick={() => {
@@ -807,22 +741,22 @@ export default function CODOrdersPage() {
                                     showToast(res.message || 'Failed to generate invoice.');
                                   }
                                 }}
-                                className="px-2 py-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] transition shadow-xs flex items-center gap-1 cursor-pointer"
+                                className="px-1.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer whitespace-nowrap"
                                 title="Generate Invoice from Approved COD Quotation"
                               >
-                                <FileText className="w-3 h-3" />
-                                <span>Gen Invoice</span>
+                                <FileText className="w-3 h-3 shrink-0" />
+                                <span>Invoice</span>
                               </button>
                             )}
 
                             {!isPaid && (
                               <button
                                 onClick={() => handleOpenCollectModal(so)}
-                                className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition shadow-xs flex items-center gap-1 cursor-pointer"
+                                className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer whitespace-nowrap"
                                 title="Record Cash received from customer/courier"
                               >
-                                <HandCoins className="w-3.5 h-3.5" />
-                                <span>Mark Collected</span>
+                                <HandCoins className="w-3 h-3 shrink-0" />
+                                <span>Collect</span>
                               </button>
                             )}
 
@@ -831,7 +765,7 @@ export default function CODOrdersPage() {
                                 href={`https://wa.me/91${cust.mobile.replace(/\D/g, '')}?text=Hello%20${encodeURIComponent(so.customerName)},%20confirming%20your%20COD%20${so.isQuotationOnly ? 'quotation' : 'order'}%20${so.orderNumber}%20of%20Rs.${so.grandTotal}.%20Kindly%20keep%20exact%20cash%20ready%20upon%20delivery.`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                                className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
                                 title="WhatsApp Customer (Confirm COD readiness)"
                               >
                                 <MessageSquare className="w-3.5 h-3.5" />
@@ -841,7 +775,7 @@ export default function CODOrdersPage() {
                             {so.isQuotationOnly ? (
                               <Link
                                 href={`/sales/quotations?search=${encodeURIComponent(so.quotationNumber || '')}`}
-                                className="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition"
+                                className="p-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition"
                                 title="View Quotation in Quotations module"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -852,7 +786,7 @@ export default function CODOrdersPage() {
                                   setSelectedOrder(so);
                                   setIsViewModalOpen(true);
                                 }}
-                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                                className="p-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 transition cursor-pointer"
                                 title="View Order Details"
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -874,40 +808,41 @@ export default function CODOrdersPage() {
         {/* ======================================================== */}
         {isCollectModalOpen && collectTargetOrder && (
           <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
-                    <HandCoins className="w-5 h-5" />
+                  <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <HandCoins className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm">
+                    <h3 className="font-bold text-slate-900 text-sm leading-tight">
                       Record Cash Collection (COD)
                     </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Order: <strong className="text-blue-700 font-mono">{collectTargetOrder.orderNumber}</strong> • {collectTargetOrder.customerName}
+                    <p className="text-[10.5px] text-slate-500 font-mono mt-0.5">
+                      Order: <strong className="text-blue-700">{collectTargetOrder.orderNumber}</strong> • {collectTargetOrder.customerName}
                     </p>
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsCollectModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-700 p-1"
+                  className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitCollection} className="p-5 space-y-4 text-xs">
-                <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-amber-900">
+              <form onSubmit={handleSubmitCollection} className="p-4 space-y-3 text-xs">
+                <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-amber-900">
                   <div className="flex justify-between items-center text-xs font-semibold">
                     <span>Total COD Order Amount:</span>
-                    <strong className="text-sm font-black text-slate-900">
+                    <strong className="text-sm font-black text-slate-900 font-mono">
                       ₹{collectTargetOrder.grandTotal.toLocaleString('en-IN')}
                     </strong>
                   </div>
                   <div className="flex justify-between items-center text-xs text-amber-800 mt-1">
                     <span>Pending to Collect:</span>
-                    <strong className="font-bold text-amber-900">
+                    <strong className="font-bold text-amber-900 font-mono">
                       ₹{Math.max(0, collectTargetOrder.grandTotal - (collectTargetOrder.amountPaid || 0)).toLocaleString('en-IN')}
                     </strong>
                   </div>
@@ -924,11 +859,11 @@ export default function CODOrdersPage() {
                     value={collectAmount}
                     onChange={(e) => setCollectAmount(parseFloat(e.target.value) || 0)}
                     required
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-slate-700 font-bold mb-1">
                       Collection Date *
@@ -938,7 +873,7 @@ export default function CODOrdersPage() {
                       value={collectDate}
                       onChange={(e) => setCollectDate(e.target.value)}
                       required
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white font-mono"
                     />
                   </div>
                   <div>
@@ -950,7 +885,7 @@ export default function CODOrdersPage() {
                       value={collectReference}
                       onChange={(e) => setCollectReference(e.target.value)}
                       placeholder="e.g. AWB-984210"
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
                     />
                   </div>
                 </div>
@@ -964,7 +899,7 @@ export default function CODOrdersPage() {
                     value={collectNotes}
                     onChange={(e) => setCollectNotes(e.target.value)}
                     placeholder="Cash handed over by courier agent / customer..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
                   />
                 </div>
 
@@ -972,15 +907,15 @@ export default function CODOrdersPage() {
                   <button
                     type="button"
                     onClick={() => setIsCollectModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition"
+                    className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Confirm Cash Collected</span>
                   </button>
                 </div>
@@ -1009,8 +944,9 @@ export default function CODOrdersPage() {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsViewModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-700 p-1"
+                  className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1022,7 +958,7 @@ export default function CODOrdersPage() {
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Payment Mode</span>
                     <div className="font-bold text-amber-700 flex items-center gap-1 mt-0.5">
-                      <HandCoins className="w-3.5 h-3.5" /> Cash On Delivery
+                      <HandCoins className="w-3.5 h-3.5 shrink-0" /> Cash On Delivery
                     </div>
                   </div>
                   <div>
@@ -1051,7 +987,7 @@ export default function CODOrdersPage() {
                             SKU: {item.sku} • Qty: {item.quantity} {item.unit || 'PCS'} @ ₹{item.unitPrice || item.sellingPrice}
                           </div>
                         </div>
-                        <div className="font-bold text-slate-900 text-right">
+                        <div className="font-bold text-slate-900 text-right font-mono">
                           ₹{(item.totalPrice ?? (item.quantity * (item.unitPrice || item.sellingPrice || 0))).toLocaleString('en-IN')}
                         </div>
                       </div>
@@ -1063,23 +999,23 @@ export default function CODOrdersPage() {
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>Subtotal:</span>
-                    <span>₹{selectedOrder.subtotal.toLocaleString('en-IN')}</span>
+                    <span className="font-mono">₹{selectedOrder.subtotal.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>GST Tax:</span>
-                    <span>₹{selectedOrder.taxAmount.toLocaleString('en-IN')}</span>
+                    <span className="font-mono">₹{selectedOrder.taxAmount.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-200 text-sm">
                     <span>Grand Total (COD):</span>
-                    <span className="text-blue-700">₹{selectedOrder.grandTotal.toLocaleString('en-IN')}</span>
+                    <span className="text-blue-700 font-mono">₹{selectedOrder.grandTotal.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between text-emerald-700 font-semibold">
                     <span>Amount Paid:</span>
-                    <span>₹{(selectedOrder.amountPaid || 0).toLocaleString('en-IN')}</span>
+                    <span className="font-mono">₹{(selectedOrder.amountPaid || 0).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between text-amber-700 font-bold">
                     <span>Pending COD Balance:</span>
-                    <span>₹{Math.max(0, selectedOrder.grandTotal - (selectedOrder.amountPaid || 0)).toLocaleString('en-IN')}</span>
+                    <span className="font-mono">₹{Math.max(0, selectedOrder.grandTotal - (selectedOrder.amountPaid || 0)).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
@@ -1092,10 +1028,11 @@ export default function CODOrdersPage() {
                 )}
               </div>
 
-              <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/50 shrink-0">
+              <div className="p-3.5 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/50 shrink-0">
                 <button
+                  type="button"
                   onClick={() => setIsViewModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition"
+                  className="px-4 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition cursor-pointer"
                 >
                   Close
                 </button>
