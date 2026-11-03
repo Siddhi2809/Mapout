@@ -113,6 +113,7 @@ interface ERPContextType {
   refreshProductsFromDB: () => Promise<ProductMaster[]>;
   refreshRawMaterialsFromDB: () => Promise<RawMaterial[]>;
   refreshSalesOrdersFromDB: () => Promise<SalesOrder[]>;
+  refreshQuotationsFromDB: () => Promise<Quotation[]>;
 
   // BOM Actions
   addBOM: (bom: Omit<BOM, 'id' | 'bomNumber' | 'createdDate'>) => { success: boolean; message?: string };
@@ -194,7 +195,7 @@ interface ERPContextType {
   updateFollowUpStatusFull: (id: string, status: FollowUp['status']) => { success: boolean; message?: string };
 
   // Quotation Workflow Actions
-  createQuotation: (quotation: Omit<Quotation, 'id'>) => { success: boolean; data?: Quotation; message?: string };
+  createQuotation: (quotation: Omit<Quotation, 'id'>) => Promise<{ success: boolean; data?: Quotation; message?: string }>;
   createQuotationFromSalesOrder: (
     salesOrderId: string,
     warrantyPeriod?: string,
@@ -1808,7 +1809,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // --- QUOTATION WORKFLOW ACTIONS ---
-  const createQuotation = (quotation: Omit<Quotation, 'id'>) => {
+  const createQuotation = async (quotation: Omit<Quotation, 'id'>): Promise<{ success: boolean; data?: Quotation; message?: string }> => {
     const quotationNumber = quotation.quotationNumber || generateEntityCode('QUOTATION');
     const newId = `qt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
@@ -1816,17 +1817,32 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...quotation,
       id: newId,
       quotationNumber,
+      paymentMode: quotation.paymentMode || 'Prepaid',
       createdAt: now,
       updatedAt: now,
     };
 
-    setQuotations((prev) => [newQuotation, ...prev]);
+    setQuotations((prev) => [newQuotation, ...prev.filter((q) => q.quotationNumber !== quotationNumber)]);
+    recordEntityCodeCreated('QUOTATION', quotationNumber);
 
-    fetch('/api/quotations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newQuotation),
-    }).catch((err) => console.warn('Failed to sync Quotation to DB:', err));
+    try {
+      const res = await fetch('/api/quotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newQuotation),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        if (data.data) {
+          setQuotations((prev) =>
+            prev.map((q) => (q.quotationNumber === quotationNumber ? { ...newQuotation, ...data.data } : q))
+          );
+        }
+        return { success: true, data: data?.data || newQuotation, message: `Quotation ${quotationNumber} saved to database.` };
+      }
+    } catch (err) {
+      console.warn('Failed to sync Quotation to DB:', err);
+    }
 
     return { success: true, data: newQuotation, message: `Quotation ${quotationNumber} created successfully.` };
   };
@@ -5050,6 +5066,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   };
 
+  const refreshQuotationsFromDB = async (): Promise<Quotation[]> => {
+    try {
+      const res = await fetch('/api/quotations');
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
+        setQuotations(data.data);
+        return data.data;
+      }
+    } catch (e) {
+      console.warn('Failed to refresh quotations from DB:', e);
+    }
+    return [];
+  };
+
   // --- BOM ACTIONS ---
   const addBOM = (bom: Omit<BOM, 'id' | 'bomNumber' | 'createdDate'>) => {
     if (!bom.items || bom.items.length === 0) {
@@ -5943,6 +5973,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshProductsFromDB,
         refreshRawMaterialsFromDB,
         refreshSalesOrdersFromDB,
+        refreshQuotationsFromDB,
 
         addRawMaterial,
         updateRawMaterial,

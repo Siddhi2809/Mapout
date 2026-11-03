@@ -60,12 +60,14 @@ export default function QuotationsPage() {
     activeRole,
     refreshProductsFromDB,
     refreshRawMaterialsFromDB,
+    refreshQuotationsFromDB,
   } = useERP();
 
-  // Fetch latest products and raw materials from database on load
+  // Fetch latest products, raw materials, and quotations from database on load
   useEffect(() => {
     refreshProductsFromDB();
     refreshRawMaterialsFromDB();
+    refreshQuotationsFromDB();
   }, []);
 
   const leadsRequestingQuote = useMemo(() => {
@@ -182,6 +184,7 @@ export default function QuotationsPage() {
   const handleOpenCreateModal = () => {
     refreshProductsFromDB();
     refreshRawMaterialsFromDB();
+    refreshQuotationsFromDB();
     const nextCode = generateEntityCode('QUOTATION');
     setFormQuotationNumber(nextCode);
     setFormCustomerId(customers[0]?.id || '');
@@ -333,7 +336,7 @@ export default function QuotationsPage() {
   }, [formItems, formFreightCharges, formAdjustment]);
 
   // Save Quotation
-  const handleSaveQuotation = (initialStatus: QuotationStatus) => {
+  const handleSaveQuotation = async (initialStatus: QuotationStatus) => {
     if (!formCustomerId) {
       alert('Please select a Customer.');
       return;
@@ -380,7 +383,7 @@ export default function QuotationsPage() {
       salesperson: activeRole === 'ADMIN' ? 'Administrator' : 'Sales Person',
     };
 
-    const res = createQuotation(quotationData);
+    const res = await createQuotation(quotationData);
     if (res.success) {
       showNotification(
         'success',
@@ -389,6 +392,7 @@ export default function QuotationsPage() {
         }`
       );
       setIsCreateModalOpen(false);
+      refreshQuotationsFromDB();
     } else {
       showNotification('error', res.message || 'Failed to save quotation.');
     }
@@ -567,51 +571,51 @@ export default function QuotationsPage() {
   const renderStatusBadge = (status: QuotationStatus) => {
     switch (status) {
       case 'Draft':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">Draft</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap inline-block">Draft</span>;
       case 'Sent to Customer':
       case 'Sent to Client':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Sent to Customer</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap inline-block">Sent to Client</span>;
       case 'Follow-up Required':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">Follow-up Required</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 whitespace-nowrap inline-block">Follow-up</span>;
       case 'Customer Approved':
       case 'Approved':
       case 'Confirmed':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse flex items-center gap-1 w-max">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Customer Approved</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse inline-flex items-center justify-center gap-0.5 whitespace-nowrap">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+            <span>Approved</span>
           </span>
         );
       case 'Invoice Generated':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">Invoice Generated</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap inline-block">Invoice Gen</span>;
       case 'Payment Pending':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">Payment Pending</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 whitespace-nowrap inline-block">Payment Due</span>;
       case 'Payment Completed':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Payment Completed</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap inline-block">Paid</span>;
       case 'Sent to Production':
       case 'Sent to Product':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Sent to Production</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap inline-block">Sent to Prod</span>;
       case 'In Production':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">In Production</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 whitespace-nowrap inline-block">In Prod</span>;
       case 'Production Completed':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">Production Done</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap inline-block">Prod Done</span>;
       case 'Packing':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">Packing</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap inline-block">Packing</span>;
       case 'Packed':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">Packed</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap inline-block">Packed</span>;
       case 'Ready for Dispatch':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-600 text-white border border-blue-700">Ready for Dispatch</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white border border-blue-700 whitespace-nowrap inline-block">Ready Dispatch</span>;
       case 'Dispatched':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Dispatched</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap inline-block">Dispatched</span>;
       case 'Completed':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-900 text-white">Completed</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900 text-white whitespace-nowrap inline-block">Completed</span>;
       case 'Customer Rejected':
       case 'Rejected':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">Customer Rejected</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap inline-block">Rejected</span>;
       case 'Expired':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">Expired</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap inline-block">Expired</span>;
       default:
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">{status}</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 whitespace-nowrap inline-block">{status}</span>;
     }
   };
 
@@ -700,7 +704,7 @@ export default function QuotationsPage() {
         )}
 
         {/* Workflow Pipeline Guide Banner */}
-        <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-emerald-50 border border-blue-200 rounded-2xl p-4 shadow-2xs">
+        {/* <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-emerald-50 border border-blue-200 rounded-2xl p-4 shadow-2xs">
           <div className="text-[11px] font-bold text-blue-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-blue-600" /> Strict CRM & Sales to Production Workflow Pipeline
           </div>
@@ -736,7 +740,7 @@ export default function QuotationsPage() {
               <div className="text-[10px] text-slate-500">Stock Decrements</div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* KPI Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -784,7 +788,7 @@ export default function QuotationsPage() {
                   'Packed',
                   'Ready for Dispatch',
                   'Dispatched',
-                  'Rejected',
+                 
                 ] as const
               ).map((tab) => (
                 <button
@@ -801,9 +805,7 @@ export default function QuotationsPage() {
                   {tab === 'ALL'
                     ? 'All'
                     : tab === 'Confirmed'
-                    ? 'Confirmed (Ready to Send)'
-                    : tab === 'Rejected'
-                    ? 'Rejected / Expired'
+                    ? 'Confirmed'
                     : tab}
                 </button>
               ))}
@@ -811,7 +813,7 @@ export default function QuotationsPage() {
 
             {/* Payment Mode Filter & Search Input */}
             <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+              {/* <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                 {(['ALL', 'COD', 'Prepaid'] as const).map((mode) => (
                   <button
                     key={mode}
@@ -829,7 +831,7 @@ export default function QuotationsPage() {
                     <span>{mode === 'ALL' ? 'All Payment' : mode}</span>
                   </button>
                 ))}
-              </div>
+              </div> */}
 
               {/* Search Input */}
               <div className="relative w-full sm:w-64">
@@ -848,20 +850,20 @@ export default function QuotationsPage() {
 
         {/* Quotations List Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-hidden">
+          <div className="w-full overflow-hidden">
             <table className="w-full text-left border-collapse text-xs table-fixed">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                  <th className="py-2.5 px-3 w-[11%]">Quotation #</th>
-                  <th className="py-2.5 px-2 w-[6%]">Payment</th>
-                  <th className="py-2.5 px-3 w-[17%]">Customer</th>
-                  <th className="py-2.5 px-2 w-[9%]">Date / Validity</th>
-                  <th className="py-2.5 px-2 w-[7%]">Warranty</th>
-                  <th className="py-2.5 px-3 w-[17%]">Items Summary</th>
-                  <th className="py-2.5 px-3 text-right w-[10%]">Total (₹)</th>
-                  <th className="py-2.5 px-2 text-center w-[8%]">Status</th>
-                  <th className="py-2.5 px-2 text-center w-[9%]">Workflow</th>
-                  <th className="py-2.5 px-2 text-center w-[6%]">Actions</th>
+                  <th className="py-2.5 px-2.5 w-[14%]">Quotation #</th>
+                  <th className="py-2.5 px-1 w-[7%] text-center">Payment</th>
+                  <th className="py-2.5 px-2.5 w-[15%]">Customer</th>
+                  <th className="py-2.5 px-1.5 w-[8%]">Date / Valid</th>
+                  <th className="py-2.5 px-1 w-[6%] text-center">Warranty</th>
+                  <th className="py-2.5 px-2.5 w-[15%]">Items Summary</th>
+                  <th className="py-2.5 px-2 text-right w-[9%]">Total (₹)</th>
+                  <th className="py-2.5 px-1 text-center w-[10%]">Status</th>
+                  <th className="py-2.5 px-1 text-center w-[10%]">Workflow</th>
+                  <th className="py-2.5 px-1 text-center w-[6%]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
@@ -887,16 +889,21 @@ export default function QuotationsPage() {
                     return (
                       <tr key={q.id} className="hover:bg-slate-50/60 transition">
                         {/* Quotation Number */}
-                        <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap align-middle">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-blue-700 font-extrabold">{q.quotationNumber}</span>
+                        <td className="py-2.5 px-2.5 font-bold text-slate-900 align-middle">
+                          <div className="flex items-center gap-1">
+                            <span
+                              className="text-blue-700 font-extrabold tracking-tight break-all block text-[11px] leading-tight"
+                              title={q.quotationNumber}
+                            >
+                              {q.quotationNumber}
+                            </span>
                           </div>
                           {q.orderNumber && (
-                            <div className="text-[10px] text-slate-500 font-medium mt-0.5 flex items-center gap-1">
+                            <div className="text-[10px] text-slate-500 font-medium mt-0.5 flex items-center gap-0.5 leading-none">
                               <span>SO:</span>
                               <Link
                                 href="/sales/orders"
-                                className="text-blue-600 hover:underline font-bold"
+                                className="text-blue-600 hover:underline font-bold truncate"
                               >
                                 {q.orderNumber}
                               </Link>
@@ -905,8 +912,8 @@ export default function QuotationsPage() {
                         </td>
 
                         {/* Payment Mode (COD / Prepaid) */}
-                        <td className="py-2.5 px-1.5 text-center whitespace-nowrap align-middle overflow-hidden">
-                          <div className="flex flex-col items-center justify-center gap-1">
+                        <td className="py-2.5 px-1 text-center align-middle">
+                          <div className="flex flex-col items-center justify-center gap-0.5">
                             <button
                               type="button"
                               onClick={() => {
@@ -919,21 +926,21 @@ export default function QuotationsPage() {
                                   }`
                                 );
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold cursor-pointer transition ${
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold cursor-pointer transition shadow-2xs whitespace-nowrap ${
                                 q.paymentMode === 'COD'
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 shadow-2xs'
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200'
                                   : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
                               }`}
                               title="Click to toggle Payment Mode (COD / Prepaid)"
                             >
                               {q.paymentMode === 'COD' ? (
                                 <>
-                                  <HandCoins className="w-3 h-3 text-amber-600" />
+                                  <HandCoins className="w-3 h-3 text-amber-600 shrink-0" />
                                   <span>COD</span>
                                 </>
                               ) : (
                                 <>
-                                  <CreditCard className="w-3 h-3 text-blue-500" />
+                                  <CreditCard className="w-3 h-3 text-blue-500 shrink-0" />
                                   <span>Prepaid</span>
                                 </>
                               )}
@@ -941,25 +948,27 @@ export default function QuotationsPage() {
                             {q.paymentMode === 'COD' && (
                               <Link
                                 href={`/sales/cod?search=${encodeURIComponent(q.quotationNumber)}`}
-                                className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 transition"
+                                className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 px-1 py-0.2 rounded border border-amber-200 transition whitespace-nowrap"
                                 title="View this quotation in COD Orders module"
                               >
                                 <span>COD Order</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
+                                <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                               </Link>
                             )}
                           </div>
                         </td>
 
                         {/* Customer */}
-                        <td className="py-3.5 px-4 font-semibold text-slate-800 align-middle">
-                          <div className="truncate max-w-[170px]">{q.customerName}</div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                        <td className="py-2.5 px-2.5 font-semibold text-slate-800 align-middle">
+                          <div className="truncate text-xs font-semibold text-slate-800" title={q.customerName}>
+                            {q.customerName}
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                             {q.salesperson && (
-                              <span className="text-[10px] text-slate-400 font-medium">By: {q.salesperson}</span>
+                              <span className="text-[10px] text-slate-400 font-medium truncate">By: {q.salesperson}</span>
                             )}
                             {(q.notes?.includes('Lead') || customers.some((c) => c.id === q.customerId && c.convertedFromLeadId)) && (
-                              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                              <span className="inline-block px-1 py-0.2 rounded text-[9px] font-sans font-semibold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
                                 From Lead
                               </span>
                             )}
@@ -967,22 +976,25 @@ export default function QuotationsPage() {
                         </td>
 
                         {/* Date / Validity */}
-                        <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 align-middle">
-                          <div className="font-semibold text-slate-800">{q.quotationDate}</div>
-                          <div className="text-[10px] text-slate-400">Valid: {q.validUntil}</div>
+                        <td className="py-2.5 px-1.5 text-slate-600 align-middle">
+                          <div className="font-semibold text-slate-800 text-[11px] whitespace-nowrap">{q.quotationDate}</div>
+                          <div className="text-[10px] text-slate-400 whitespace-nowrap">Valid: {q.validUntil}</div>
                         </td>
 
                         {/* Warranty Period */}
-                        <td className="py-3.5 px-4 whitespace-nowrap align-middle">
-                          <div className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <td className="py-2.5 px-1 text-center align-middle">
+                          <div className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded whitespace-nowrap">
+                            <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
                             <span>{q.warrantyPeriod || '1 Year'}</span>
                           </div>
                         </td>
 
                         {/* Items Summary */}
-                        <td className="py-3.5 px-4 align-middle">
-                          <div className="text-slate-700 font-medium truncate max-w-[200px]">
+                        <td className="py-2.5 px-2.5 align-middle">
+                          <div
+                            className="text-slate-700 font-medium truncate text-xs"
+                            title={q.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ')}
+                          >
                             {q.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ')}
                           </div>
                           <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
@@ -991,105 +1003,105 @@ export default function QuotationsPage() {
                         </td>
 
                         {/* Total Amount */}
-                        <td className="py-3.5 px-4 text-right font-black text-slate-900 whitespace-nowrap align-middle">
-                          <div>₹{q.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                        <td className="py-2.5 px-2 text-right font-black text-slate-900 whitespace-nowrap align-middle">
+                          <div className="text-xs">₹{q.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                           <div className="text-[10px] text-slate-400 font-normal">
                             Tax: ₹{q.taxAmount.toLocaleString('en-IN')}
                           </div>
                         </td>
 
                         {/* Status */}
-                        <td className="py-2.5 px-2 text-center overflow-hidden align-middle">
+                        <td className="py-2.5 px-1 text-center align-middle">
                           <div className="flex justify-center max-w-full">
                             {renderStatusBadge(q.status)}
                           </div>
                         </td>
 
                         {/* Workflow Action */}
-                        <td className="py-2.5 px-1 text-center overflow-hidden align-middle">
+                        <td className="py-2.5 px-1 text-center align-middle">
                           {q.status === 'Customer Approved' || q.status === 'Approved' || q.status === 'Confirmed' ? (
                             <button
                               type="button"
                               onClick={() => handleGenerateInvoice(q)}
-                              className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 transition cursor-pointer"
+                              className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
                               title="Customer Approved! Generate Invoice"
                             >
-                              <FileText className="w-3 h-3" />
+                              <FileText className="w-3 h-3 shrink-0" />
                               <span>Invoice</span>
                             </button>
                           ) : q.status === 'Draft' ? (
                             <button
                               type="button"
                               onClick={() => updateQuotationStatus(q.id, 'Sent to Customer')}
-                              className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition cursor-pointer"
+                              className="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition cursor-pointer whitespace-nowrap"
                               title="Send Quotation to Customer"
                             >
                               Send
                             </button>
                           ) : q.status === 'Sent to Customer' || q.status === 'Sent to Client' || q.status === 'Follow-up Required' ? (
-                            <div className="flex items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-0.5">
                               <button
                                 type="button"
                                 onClick={() => {
                                   updateQuotationStatus(q.id, 'Customer Approved');
                                   showNotification('success', `✓ Quotation ${q.quotationNumber} is marked Customer Approved.`);
                                 }}
-                                className="p-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 transition cursor-pointer"
+                                className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 transition cursor-pointer"
                                 title="Approve Quotation"
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleOpenFollowUpModal(q)}
-                                className="p-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 transition cursor-pointer"
+                                className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 transition cursor-pointer"
                                 title="Schedule Follow-up"
                               >
-                                <Calendar className="w-3.5 h-3.5" />
+                                <Calendar className="w-3 h-3" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => updateQuotationStatus(q.id, 'Customer Rejected')}
-                                className="p-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 transition cursor-pointer"
+                                className="p-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 transition cursor-pointer"
                                 title="Reject Quotation"
                               >
-                                <X className="w-3.5 h-3.5" />
+                                <X className="w-3 h-3" />
                               </button>
                             </div>
                           ) : q.status === 'Invoice Generated' || q.status === 'Payment Pending' ? (
                             <Link
                               href="/sales/invoices"
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded border border-purple-200 transition truncate max-w-full"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 transition whitespace-nowrap"
                               title="Invoice generated. Awaiting payment."
                             >
                               <FileText className="w-3 h-3 shrink-0" />
-                              <span className="truncate">Invoice Gen</span>
+                              <span>Invoice Gen</span>
                             </Link>
                           ) : q.status === 'Payment Completed' ? (
                             <Link
                               href="/sales/invoices"
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300 transition truncate max-w-full"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 transition whitespace-nowrap"
                               title="Full payment received. Ready for Production."
                             >
                               <CheckCircle2 className="w-3 h-3 shrink-0" />
-                              <span className="truncate">Paid</span>
+                              <span>Paid</span>
                             </Link>
                           ) : q.status === 'Customer Rejected' || q.status === 'Rejected' ? (
-                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200">
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 whitespace-nowrap">
                               Rejected
                             </span>
                           ) : q.status === 'Expired' ? (
-                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200">
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 whitespace-nowrap">
                               Expired
                             </span>
                           ) : isSentToProduction ? (
                             <Link
                               href="/product/orders"
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition truncate max-w-full"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition whitespace-nowrap"
                               title="In Production"
                             >
                               <PackageCheck className="w-3 h-3 shrink-0" />
-                              <span className="truncate">Prod</span>
+                              <span>Prod</span>
                             </Link>
                           ) : (
                             <span className="text-[10px] text-slate-400 italic">-</span>
@@ -1097,7 +1109,7 @@ export default function QuotationsPage() {
                         </td>
 
                         {/* Action buttons */}
-                        <td className="py-2.5 px-1 text-center overflow-hidden align-middle">
+                        <td className="py-2.5 px-1 text-center align-middle">
                           <div className="flex items-center justify-center gap-1">
                             {/* View / Print modal */}
                             <button
@@ -1106,7 +1118,7 @@ export default function QuotationsPage() {
                                 setSelectedQuotation(q);
                                 setIsViewModalOpen(true);
                               }}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 transition cursor-pointer"
+                              className="p-1 rounded bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 transition cursor-pointer"
                               title="View & Print Quotation Format"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -1116,7 +1128,7 @@ export default function QuotationsPage() {
                             <button
                               type="button"
                               onClick={() => handleOpenFollowUpModal(q)}
-                              className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition cursor-pointer"
+                              className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition cursor-pointer"
                               title="Add / Schedule Follow-up"
                             >
                               <Calendar className="w-3.5 h-3.5" />

@@ -280,12 +280,31 @@ export default function FollowUpsPage() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchCust = (f.customerName || '').toLowerCase().includes(q);
+        const matchLead = (f.leadOrCustomerName || '').toLowerCase().includes(q);
+        const matchContact = (f.contactPerson || '').toLowerCase().includes(q);
         const matchComp = (f.companyName || '').toLowerCase().includes(q);
         const matchCNum = (f.customerNumber || '').toLowerCase().includes(q);
         const matchQNum = (f.quotationNumber || '').toLowerCase().includes(q);
+        const matchFNum = (f.followUpNumber || '').toLowerCase().includes(q);
         const matchMob = (f.mobile || '').toLowerCase().includes(q);
+        const matchAltMob = (f.alternateMobile || '').toLowerCase().includes(q);
         const matchNotes = (f.notes || '').toLowerCase().includes(q);
-        return matchCust || matchComp || matchCNum || matchQNum || matchMob || matchNotes;
+        const matchReq = (f.requirement || '').toLowerCase().includes(q);
+        const matchCity = (getFollowUpCity(f) || '').toLowerCase().includes(q);
+        return (
+          matchCust ||
+          matchLead ||
+          matchContact ||
+          matchComp ||
+          matchCNum ||
+          matchQNum ||
+          matchFNum ||
+          matchMob ||
+          matchAltMob ||
+          matchNotes ||
+          matchReq ||
+          matchCity
+        );
       }
 
       return true;
@@ -896,10 +915,15 @@ export default function FollowUpsPage() {
                         {f.companyName && f.customerName && f.companyName !== f.customerName && (
                           <div className="text-[10px] text-slate-500">{f.customerName}</div>
                         )}
-                        {getFollowUpCity(f) && (
-                          <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mt-0.5">
+                        {(getFollowUpCity(f) || (f as any).state) && (
+                          <div
+                            className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mt-0.5"
+                            title={(f as any).address ? `Address: ${(f as any).address}` : undefined}
+                          >
                             <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="truncate">{getFollowUpCity(f)}</span>
+                            <span className="truncate">
+                              {[getFollowUpCity(f), (f as any).state].filter(Boolean).join(', ')}
+                            </span>
                           </div>
                         )}
                       </td>
@@ -910,6 +934,11 @@ export default function FollowUpsPage() {
                         )}
                         {f.mobile && (
                           <div className="font-mono text-[11px] text-blue-700">{f.mobile}</div>
+                        )}
+                        {f.alternateMobile && (
+                          <div className="font-mono text-[10px] text-slate-500">
+                            Alt: {f.alternateMobile}
+                          </div>
                         )}
                         {f.email && <div className="text-[10px] text-slate-500">{f.email}</div>}
                       </td>

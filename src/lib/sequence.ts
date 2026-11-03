@@ -34,14 +34,19 @@ export function extractCodeNumber(code: string, prefix: string): number | null {
   const match = cleanCode.match(regex);
   if (match && match[1]) {
     const num = parseInt(match[1], 10);
-    return isNaN(num) ? null : num;
+    // Ignore non-sequential huge numbers like barcodes, timestamps, phone numbers (> 999999)
+    if (!isNaN(num) && num > 0 && num <= 999999) {
+      return num;
+    }
   }
 
-  // Fallback: extract any trailing digits
+  // Fallback: extract any trailing digits if reasonable sequence length (up to 6 digits)
   const trailingDigits = cleanCode.match(/(\d+)$/);
   if (trailingDigits && trailingDigits[1]) {
     const num = parseInt(trailingDigits[1], 10);
-    return isNaN(num) ? null : num;
+    if (!isNaN(num) && num > 0 && num <= 999999) {
+      return num;
+    }
   }
 
   return null;
@@ -52,9 +57,9 @@ export function extractCodeNumber(code: string, prefix: string): number | null {
  * Rules:
  * 1. Independent sequence per entity prefix.
  * 2. Starts from 101 if no existing records.
- * 3. Inspects existing records, finds highest existing number, and returns highest + 1.
- * 4. Never reuses deleted numbers (since max existing number is preserved in counter or derived from highest).
- * 5. Returns formatted code e.g. "RM-101", "PRD-102".
+ * 3. Inspects existing records, finds highest existing sequential number (<= 999999), and returns highest + 1.
+ * 4. Never reuses or collides with existing numbers.
+ * 5. Returns formatted code e.g. "RM-101", "PRD-102", "QT-102".
  */
 export function generateNextEntityCode(
   entityType: EntityType,
@@ -66,10 +71,13 @@ export function generateNextEntityCode(
 
   // Check stored persistent max counter if available
   if (maxCounterStore && maxCounterStore[entityType] !== undefined) {
-    maxNum = Math.max(maxNum, maxCounterStore[entityType]);
+    const stored = maxCounterStore[entityType];
+    if (stored > 0 && stored <= 999999) {
+      maxNum = Math.max(maxNum, stored);
+    }
   }
 
-  // Scan existing codes to find the true highest number
+  // Scan existing codes to find the true highest sequential number (<= 999999)
   for (const code of existingCodes) {
     if (!code) continue;
     const num = extractCodeNumber(code, prefix);
@@ -78,6 +86,16 @@ export function generateNextEntityCode(
     }
   }
 
-  const nextNum = maxNum + 1;
+  let nextNum = maxNum + 1;
+
+  // Collision-safety guarantee: if the code already exists in existingCodes, increment until unique
+  const existingSet = new Set(
+    existingCodes.filter(Boolean).map((c) => (c as string).trim().toUpperCase())
+  );
+
+  while (existingSet.has(`${prefix}-${nextNum}`.toUpperCase())) {
+    nextNum++;
+  }
+
   return `${prefix}-${nextNum}`;
 }

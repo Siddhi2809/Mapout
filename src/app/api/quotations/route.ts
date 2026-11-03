@@ -162,7 +162,35 @@ export async function POST(request: Request) {
         $17, $18, $19, $20, $21, $22,
         $23, $24, $25, $26, $27, $28,
         $29::timestamp, $30::timestamp
-      )`,
+      )
+      ON CONFLICT ("quotationNumber") DO UPDATE SET
+        "customerId" = EXCLUDED."customerId",
+        "customerName" = EXCLUDED."customerName",
+        "quotationDate" = EXCLUDED."quotationDate",
+        "validUntil" = EXCLUDED."validUntil",
+        "status" = EXCLUDED."status",
+        "subtotal" = EXCLUDED."subtotal",
+        "discountAmount" = EXCLUDED."discountAmount",
+        "taxAmount" = EXCLUDED."taxAmount",
+        "totalAmount" = EXCLUDED."totalAmount",
+        "warrantyPeriod" = EXCLUDED."warrantyPeriod",
+        "paymentMode" = EXCLUDED."paymentMode",
+        "termsAndConditions" = EXCLUDED."termsAndConditions",
+        "notes" = EXCLUDED."notes",
+        "salesperson" = EXCLUDED."salesperson",
+        "salesOrderId" = COALESCE(EXCLUDED."salesOrderId", "Quotation"."salesOrderId"),
+        "orderNumber" = COALESCE(EXCLUDED."orderNumber", "Quotation"."orderNumber"),
+        "freightCharges" = EXCLUDED."freightCharges",
+        "adjustment" = EXCLUDED."adjustment",
+        "contactPerson" = EXCLUDED."contactPerson",
+        "shippingAddress" = EXCLUDED."shippingAddress",
+        "billingAddress" = EXCLUDED."billingAddress",
+        "customerGst" = EXCLUDED."customerGst",
+        "customerPhone" = EXCLUDED."customerPhone",
+        "deliveryTerms" = EXCLUDED."deliveryTerms",
+        "warrantyTerms" = EXCLUDED."warrantyTerms",
+        "signatory" = EXCLUDED."signatory",
+        "updatedAt" = EXCLUDED."updatedAt"`,
       id,
       quotationNumber,
       body.customerId || '',
@@ -195,6 +223,19 @@ export async function POST(request: Request) {
       now
     );
 
+    // Find actual quotation id (in case updated via existing quotationNumber)
+    const existingRec: any[] = await prisma.$queryRawUnsafe(
+      `SELECT "id" FROM "Quotation" WHERE "quotationNumber" = $1 LIMIT 1`,
+      quotationNumber
+    );
+    const targetQuotationId = existingRec?.[0]?.id || id;
+
+    // Clear old items for this quotation ID before inserting fresh ones
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM "QuotationItem" WHERE "quotationId" = $1`,
+      targetQuotationId
+    );
+
     // Insert line items
     const items = body.items || [];
     for (const item of items) {
@@ -210,11 +251,11 @@ export async function POST(request: Request) {
           $11, $12, $13
         )`,
         itemId,
-        id,
+        targetQuotationId,
         item.itemType || 'PRODUCT',
-        item.productId || '',
-        item.productName || '',
-        item.sku || '',
+        item.productId || `prod_${Date.now()}`,
+        item.productName || 'Item',
+        item.sku || item.productId || 'SKU-DEFAULT',
         item.unit || 'PCS',
         parseInt(item.quantity || 1, 10),
         parseFloat(item.rate || item.unitPrice || item.sellingPrice || 0),

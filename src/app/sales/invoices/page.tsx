@@ -561,7 +561,7 @@ export default function InvoicesPage() {
         )}
 
         {/* Workflow Pipeline Breadcrumb Banner */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-4 text-white shadow-md">
+        {/* <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-4 text-white shadow-md">
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 font-bold tracking-wide">
               <Sparkles className="w-4 h-4 text-amber-400" />
@@ -587,7 +587,7 @@ export default function InvoicesPage() {
               <span className="opacity-70">9. Dispatch</span>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -598,13 +598,6 @@ export default function InvoicesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2.5">
-            <Link
-              href="/sales/quotations"
-              className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition"
-            >
-              <Receipt className="w-4 h-4" />
-              <span>Approved Quotes →</span>
-            </Link>
             <button
               onClick={handleOpenGenerateModal}
               className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 transition shadow-sm cursor-pointer"
@@ -683,22 +676,6 @@ export default function InvoicesPage() {
                 className="bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
                 title="To Invoice Date"
               />
-
-              <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
-                <MapPin className="w-3.5 h-3.5 text-slate-500" /> City:
-              </div>
-              <select
-                value={cityFilter}
-                onChange={(e) => setCityFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
-              >
-                <option value="ALL">All Cities ({availableCities.length})</option>
-                {availableCities.map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
 
@@ -762,19 +739,19 @@ export default function InvoicesPage() {
         {/* Invoices Table */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold">
-                  <th className="p-3.5">Invoice #</th>
-                  <th className="p-3.5">Date</th>
-                  <th className="p-3.5">Customer</th>
-                  <th className="p-3.5">Quotation Ref</th>
-                  <th className="p-3.5 text-right font-bold">Grand Total</th>
-                  <th className="p-3.5 text-right text-emerald-700">Paid</th>
-                  <th className="p-3.5 text-right text-rose-700">Pending</th>
-                  <th className="p-3.5 text-center">Payment Status</th>
-                  <th className="p-3.5 text-center">Production Status</th>
-                  <th className="p-3.5 text-center">Workflow Actions</th>
+                <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold text-[11px]">
+                  <th className="py-3 px-3.5">Invoice #</th>
+                  <th className="py-3 px-2.5">Date</th>
+                  <th className="py-3 px-3.5">Customer</th>
+                  <th className="py-3 px-2.5">Quotation Ref</th>
+                  <th className="py-3 px-3 text-right">Grand Total</th>
+                  <th className="py-3 px-3 text-right text-emerald-700">Paid</th>
+                  <th className="py-3 px-3 text-right text-rose-700">Pending</th>
+                  <th className="py-3 px-2 text-center">Payment Status</th>
+                  <th className="py-3 px-2 text-center">Production Status</th>
+                  <th className="py-3 px-3 text-center">Workflow Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -809,106 +786,99 @@ export default function InvoicesPage() {
                     prodStatus === 'Completed';
 
                   return (
-                    <tr key={inv.id} className="hover:bg-slate-50/80 transition">
-                      <td className="p-3.5">
-                        <div className="font-mono text-blue-700 font-bold">{inv.invoiceNumber}</div>
-                        {inv.invoiceStatus && (
-                          <div className="text-[10px] text-slate-500 font-medium">{inv.invoiceStatus}</div>
-                        )}
+                    <tr key={inv.id} className="hover:bg-slate-50/70 transition">
+                      <td className="py-3 px-3.5 align-middle">
+                        <div className="font-mono text-blue-700 font-extrabold text-[12px]">{inv.invoiceNumber}</div>
                       </td>
-                      <td className="p-3.5 text-slate-600 font-mono">{inv.invoiceDate}</td>
-                      <td className="p-3.5 max-w-[200px]">
-                        <div className="font-bold text-slate-900 truncate">{inv.customerName}</div>
+                      <td className="py-3 px-2.5 text-slate-700 font-medium text-xs whitespace-nowrap align-middle">
+                        {inv.invoiceDate}
+                      </td>
+                      <td className="py-3 px-3.5 max-w-[200px] align-middle">
+                        <div className="font-bold text-slate-900 truncate" title={inv.customerName}>{inv.customerName}</div>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                          <span className="font-mono text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200 font-semibold">
                             {inv.customerNumber || 'CUS-101'}
                           </span>
                         </div>
                       </td>
-                      <td className="p-3.5 font-mono text-purple-700 font-bold">
+                      <td className="py-3 px-2.5 font-mono text-slate-700 font-semibold text-xs whitespace-nowrap align-middle">
                         {inv.quotationNumber || inv.salesOrderNumber || '—'}
                       </td>
-                      <td className="p-3.5 text-right font-extrabold text-slate-900 font-mono text-sm">
-                        ₹{inv.grandTotal.toLocaleString('en-IN')}
+                      <td className="py-3 px-3 text-right font-black text-slate-900 font-mono text-xs whitespace-nowrap align-middle">
+                        ₹{inv.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 1 })}
                       </td>
-                      <td className="p-3.5 text-right font-bold text-emerald-700 font-mono">
-                        ₹{(hasProofOrPaid ? inv.grandTotal : inv.paidAmount).toLocaleString('en-IN')}
+                      <td className="py-3 px-3 text-right font-bold text-emerald-700 font-mono text-xs whitespace-nowrap align-middle">
+                        ₹{(hasProofOrPaid ? inv.grandTotal : inv.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 1 })}
                       </td>
-                      <td className="p-3.5 text-right font-bold text-slate-500 font-mono">
-                        ₹{(hasProofOrPaid ? 0 : inv.outstandingAmount).toLocaleString('en-IN')}
+                      <td className={`py-3 px-3 text-right font-bold font-mono text-xs whitespace-nowrap align-middle ${(hasProofOrPaid ? 0 : inv.outstandingAmount) > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                        ₹{(hasProofOrPaid ? 0 : inv.outstandingAmount).toLocaleString('en-IN', { minimumFractionDigits: 1 })}
                       </td>
-                      <td className="p-3.5 text-center">
+                      <td className="py-3 px-2 text-center align-middle">
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] whitespace-nowrap border ${getPaymentBadge(
+                              hasProofOrPaid ? 'Paid' : (inv.paymentStatus || 'Payment Pending')
+                            )}`}
+                          >
+                            {hasProofOrPaid ? 'Paid' : (inv.paymentStatus || 'Payment Pending')}
+                          </span>
+                          {inv.paymentProofFiles && inv.paymentProofFiles.length > 0 && (
+                            <div className="flex items-center justify-center gap-1 text-[9px] text-emerald-700 font-bold whitespace-nowrap">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                              <span>Proof Attached</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-center align-middle">
                         <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] border ${getPaymentBadge(
-                            hasProofOrPaid ? 'Paid' : (inv.paymentStatus || 'Payment Pending')
-                          )}`}
-                        >
-                          {hasProofOrPaid ? 'Paid' : (inv.paymentStatus || 'Payment Pending')}
-                        </span>
-                        {inv.paymentProofFiles && inv.paymentProofFiles.length > 0 && (
-                          <div className="mt-1 flex items-center justify-center gap-1 text-[10px] text-emerald-700 font-bold">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>Proof Attached</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getProductionBadge(
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap border ${getProductionBadge(
                             prodStatus
                           )}`}
                         >
                           {prodStatus}
                         </span>
                       </td>
-                      <td className="p-3.5">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                      <td className="py-3 px-3 text-center align-middle">
+                        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                           {/* SEND INVOICE TO PRODUCTION: Rendered when Payment Proof is Uploaded, Verified, or Completed */}
                           {hasProofOrPaid ? (
                             !isSentToProd ? (
                               <button
                                 onClick={() => handleSendToProduction(inv)}
-                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm flex items-center gap-1.5 cursor-pointer transition hover:scale-105 active:scale-95 animate-pulse"
+                                className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition"
                                 title="Payment proof uploaded! Click to send Invoice to Production"
                               >
-                                <Factory className="w-3.5 h-3.5" />
+                                <Factory className="w-3 h-3 shrink-0" />
                                 <span>Send to Production</span>
                               </button>
                             ) : (
                               <span
-                                className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold flex items-center gap-1"
+                                className="px-2 py-0.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-bold inline-flex items-center gap-1"
                                 title="Transferred to Production Team"
                               >
-                                <Check className="w-3 h-3 text-emerald-600" />
+                                <Check className="w-3 h-3 text-blue-600 shrink-0" />
                                 <span>In Production</span>
                               </span>
                             )
                           ) : (
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {/* Upload Payment Proof button */}
-                              <button
-                                onClick={() => handleOpenUploadProofModal(inv)}
-                                className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition hover:scale-105"
-                                title="Upload Customer Payment Proof / Screenshot"
-                              >
-                                <UploadCloud className="w-3.5 h-3.5" />
-                                <span>Upload Payment Proof</span>
-                              </button>
-                              <span
-                                className="p-1 text-slate-400 flex items-center"
-                                title="Upload payment proof to unlock Send to Production"
-                              >
-                                <Lock className="w-3.5 h-3.5 text-amber-500" />
-                              </span>
-                            </div>
+                            <button
+                              onClick={() => handleOpenUploadProofModal(inv)}
+                              className="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition"
+                              title="Upload Customer Payment Proof / Screenshot"
+                            >
+                              <UploadCloud className="w-3 h-3 shrink-0" />
+                              <span>Upload Payment Proof</span>
+                            </button>
                           )}
 
                           <button
                             onClick={() => handleOpenViewModal(inv)}
-                            className="px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
+                            className="px-2 py-1 rounded-xl bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 font-bold text-[10px] inline-flex items-center gap-1 transition cursor-pointer"
                             title="View full tax invoice and payment proof details"
                           >
-                            <Eye className="w-3 h-3 text-blue-600" /> View
+                            <Eye className="w-3 h-3 shrink-0" />
+                            <span>View</span>
                           </button>
                         </div>
                       </td>
@@ -931,45 +901,45 @@ export default function InvoicesPage() {
         {/* QUICK RECORD PAYMENT MODAL */}
         {isPaymentModalOpen && paymentTargetInvoice && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-blue-50/70 to-slate-50 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 font-bold">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
                     <DollarSign className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Record Customer Payment</h3>
-                    <p className="text-[11px] text-slate-500">Record customer payment against Invoice {paymentTargetInvoice.invoiceNumber}</p>
+                    <h3 className="text-xs font-bold text-slate-900">Record Customer Payment</h3>
+                    <p className="text-[10px] text-slate-500">Invoice: {paymentTargetInvoice.invoiceNumber} • {paymentTargetInvoice.customerName}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsPaymentModalOpen(false)}
-                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 flex items-center justify-center cursor-pointer"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleSavePayment} className="p-6 space-y-4 text-xs">
+              <form onSubmit={handleSavePayment} className="p-4 space-y-3 text-xs">
                 {/* Invoice & Outstanding Balance Card */}
-                <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-3.5 space-y-2">
-                  <div className="flex items-center justify-between text-purple-900 font-bold">
+                <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-blue-900 font-bold text-xs">
                     <span>Invoice: {paymentTargetInvoice.invoiceNumber}</span>
-                    <span className="font-mono text-xs">Total: ₹{paymentTargetInvoice.grandTotal.toLocaleString('en-IN')}</span>
+                    <span className="font-mono">Total: ₹{paymentTargetInvoice.grandTotal.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="text-slate-600 flex items-center justify-between text-[11px]">
-                    <span>Customer: <strong>{paymentTargetInvoice.customerName}</strong> ({paymentTargetInvoice.customerNumber || 'CUS-101'})</span>
-                    <span>Paid So Far: ₹{paymentTargetInvoice.paidAmount.toLocaleString('en-IN')}</span>
+                    <span>Customer: <strong>{paymentTargetInvoice.customerName}</strong></span>
+                    <span>Paid: ₹{paymentTargetInvoice.paidAmount.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-purple-200 text-rose-700 font-bold">
+                  <div className="flex items-center justify-between pt-1 border-t border-blue-200 text-rose-600 font-bold text-xs">
                     <span>Pending Amount:</span>
-                    <span className="font-mono text-sm">₹{paymentTargetInvoice.outstandingAmount.toLocaleString('en-IN')}</span>
+                    <span className="font-mono">₹{paymentTargetInvoice.outstandingAmount.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Amount (₹) *</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Amount (₹) *</label>
                     <input
                       type="number"
                       step="any"
@@ -977,7 +947,7 @@ export default function InvoicesPage() {
                       max={paymentTargetInvoice.outstandingAmount}
                       value={payAmount}
                       onChange={(e) => setPayAmount(Number(e.target.value))}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
                       required
                     />
                   </div>
@@ -985,7 +955,7 @@ export default function InvoicesPage() {
                     <button
                       type="button"
                       onClick={() => setPayAmount(paymentTargetInvoice.outstandingAmount)}
-                      className="px-3 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-800 text-[11px] font-bold cursor-pointer transition text-center"
+                      className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold cursor-pointer transition text-center"
                     >
                       Pay Full (₹{paymentTargetInvoice.outstandingAmount.toLocaleString('en-IN')})
                     </button>
@@ -993,33 +963,33 @@ export default function InvoicesPage() {
                 </div>
 
                 {/* Live balance calculation preview */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 font-medium">Remaining Pending after this payment:</span>
+                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-500 font-medium">Remaining after payment:</span>
                   <span className="font-mono font-bold text-slate-900">
                     ₹{Math.max(0, paymentTargetInvoice.outstandingAmount - payAmount).toLocaleString('en-IN')}
                     {paymentTargetInvoice.outstandingAmount - payAmount <= 0 && (
-                      <span className="ml-2 text-emerald-600 font-bold">→ Status: Payment Completed ✓</span>
+                      <span className="ml-1 text-emerald-600 font-bold">✓ Paid</span>
                     )}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Date</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Payment Date</label>
                     <input
                       type="date"
                       value={payDate}
                       onChange={(e) => setPayDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-purple-600"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Method</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Payment Method</label>
                     <select
                       value={payMode}
                       onChange={(e) => setPayMode(e.target.value as any)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-purple-600 font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none font-medium"
                     >
                       <option value="Bank Transfer">Bank Transfer (NEFT/RTGS/IMPS)</option>
                       <option value="UPI">UPI (GPay / PhonePe / Paytm)</option>
@@ -1031,26 +1001,26 @@ export default function InvoicesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Transaction Reference / UTR / Cheque Number
+                  <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                    Reference / UTR / Cheque Number
                   </label>
                   <input
                     type="text"
                     placeholder="e.g. UTR1029384756 or Cheque #987654"
                     value={payRef}
                     onChange={(e) => setPayRef(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-purple-600 font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Notes</label>
+                  <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Payment Notes</label>
                   <input
                     type="text"
                     placeholder="Remarks or payment notes..."
                     value={payNotes}
                     onChange={(e) => setPayNotes(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-purple-600"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
                   />
                 </div>
 
@@ -1058,13 +1028,13 @@ export default function InvoicesPage() {
                   <button
                     type="button"
                     onClick={() => setIsPaymentModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md cursor-pointer flex items-center gap-1.5"
+                    className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5 transition"
                   >
                     <Check className="w-3.5 h-3.5" />
                     <span>Confirm Payment</span>
@@ -1225,7 +1195,7 @@ export default function InvoicesPage() {
                     {!hasProofOrPaid && (
                       <button
                         onClick={() => handleOpenUploadProofModal(selectedInvoice)}
-                        className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                       >
                         <UploadCloud className="w-3.5 h-3.5" />
                         <span>Upload Payment Proof</span>
@@ -1879,7 +1849,7 @@ export default function InvoicesPage() {
                       <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-5 space-y-4 print:hidden">
                         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <Receipt className="w-4 h-4 text-indigo-600" />
+                            <Receipt className="w-4 h-4 text-blue-600" />
                             <h4 className="font-bold text-xs text-slate-900">
                               Customer Payment Proof & Verification Workflow
                             </h4>
@@ -1891,7 +1861,7 @@ export default function InvoicesPage() {
                             {!hasProofOrPaid ? (
                               <button
                                 onClick={() => handleOpenUploadProofModal(selectedInvoice)}
-                                className="px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                                className="px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                               >
                                 <UploadCloud className="w-3.5 h-3.5" />
                                 <span>Upload Payment Proof</span>
@@ -1940,7 +1910,7 @@ export default function InvoicesPage() {
                         {/* Gallery of Uploaded Proofs */}
                         <div>
                           <div className="text-[11px] font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-                            <Paperclip className="w-3.5 h-3.5 text-indigo-600" />
+                            <Paperclip className="w-3.5 h-3.5 text-blue-600" />
                             <span>Attached Payment Proof Documents ({selectedInvoice.paymentProofFiles?.length || 0})</span>
                           </div>
 
@@ -2126,69 +2096,70 @@ export default function InvoicesPage() {
               if (e.target === e.currentTarget) setIsUploadProofModalOpen(false);
             }}
           >
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-6">
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-indigo-50/50">
-                <div className="flex items-center gap-2">
-                  <UploadCloud className="w-5 h-5 text-indigo-600" />
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-6">
+              <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50/70 to-slate-50">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                    <UploadCloud className="w-4 h-4" />
+                  </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Upload Customer Payment Proof</h3>
-                    <p className="text-[11px] text-slate-500">Invoice: {proofTargetInvoice.invoiceNumber} • {proofTargetInvoice.customerName}</p>
+                    <h3 className="text-xs font-bold text-slate-900">Upload Customer Payment Proof</h3>
+                    <p className="text-[10px] text-slate-500">{proofTargetInvoice.invoiceNumber} • {proofTargetInvoice.customerName}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsUploadProofModalOpen(false)}
-                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitProofUpload} className="p-6 space-y-4 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <form onSubmit={handleSubmitProofUpload} className="p-4 space-y-3 text-xs">
+                {/* Invoice summary banner */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-blue-50/60 border border-blue-100 text-xs">
                   <div>
-                    <label className="block text-slate-700 font-bold mb-1">Invoice Total Amount</label>
-                    <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 font-mono font-bold text-slate-800">
-                      ₹{proofTargetInvoice.grandTotal.toLocaleString('en-IN')}
-                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium block">Invoice Total</span>
+                    <span className="font-mono font-black text-slate-900 text-xs">₹{proofTargetInvoice.grandTotal.toLocaleString('en-IN')}</span>
                   </div>
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Paid Amount (₹) *</label>
+                  <div className="w-36">
+                    <label className="block text-[10px] text-slate-600 font-bold mb-0.5">Paid Amount (₹) *</label>
                     <input
                       type="number"
                       min={1}
                       required
                       value={proofAmount}
                       onChange={(e) => setProofAmount(Number(e.target.value))}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono font-bold focus:bg-white focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100"
+                      className="w-full bg-white border border-blue-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-mono font-bold focus:border-blue-600 focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-slate-700 font-bold mb-1">Proof Document Type *</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Proof Document Type *</label>
                     <select
                       value={proofType}
                       onChange={(e) => setProofType(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:border-indigo-600"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
                     >
                       <option value="Payment Screenshot">Payment Screenshot</option>
+                      <option value="UPI Payment Screenshot">UPI Screenshot</option>
                       <option value="Payment Receipt">Payment Receipt</option>
                       <option value="Bank Transfer Proof">Bank Transfer Proof</option>
-                      <option value="UPI Payment Screenshot">UPI Payment Screenshot</option>
-                      <option value="Cheque/Payment Document">Cheque/Payment Document</option>
+                      <option value="Cheque/Payment Document">Cheque Copy</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-slate-700 font-bold mb-1">Payment Method *</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Payment Method *</label>
                     <select
                       value={proofMode}
                       onChange={(e) => setProofMode(e.target.value as any)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:border-indigo-600"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
                     >
                       <option value="UPI">UPI Payment</option>
-                      <option value="Bank Transfer">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                      <option value="Bank Transfer">Bank Transfer (NEFT/RTGS)</option>
                       <option value="Cheque">Cheque</option>
                       <option value="Cash">Cash Receipt</option>
                       <option value="Other">Other</option>
@@ -2196,36 +2167,36 @@ export default function InvoicesPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-slate-700 font-bold mb-1">Payment Date *</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Payment Date *</label>
                     <input
                       type="date"
                       required
                       value={proofDate}
                       onChange={(e) => setProofDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium focus:bg-white focus:border-indigo-600"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-700 font-bold mb-1">Transaction / Reference Number *</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Transaction / UTR Ref *</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. UPI Ref / UTR / Cheque No"
+                      placeholder="e.g. UTR / UPI Ref"
                       value={proofRef}
                       onChange={(e) => setProofRef(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:bg-white focus:border-indigo-600"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-mono focus:bg-white focus:border-blue-600 focus:outline-none"
                     />
                   </div>
                 </div>
 
                 {/* FILE UPLOAD ZONE */}
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">
-                    Payment Proof Image / File * <span className="font-normal text-slate-500">(JPG, JPEG, PNG, PDF - Multiple files allowed)</span>
+                  <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                    Payment Proof File * <span className="font-normal text-slate-400">(JPG, PNG, PDF)</span>
                   </label>
-                  <div className="relative border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/30 rounded-xl p-5 text-center transition cursor-pointer">
+                  <div className="relative border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-xl p-3 text-center transition cursor-pointer">
                     <input
                       type="file"
                       multiple
@@ -2233,84 +2204,74 @@ export default function InvoicesPage() {
                       onChange={handleProofFilesSelect}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <div className="flex flex-col items-center justify-center space-y-1">
-                      <FileUp className="w-8 h-8 text-indigo-600 mb-1" />
-                      <span className="font-bold text-slate-800 text-xs">Click or drag & drop files here</span>
-                      <span className="text-[11px] text-slate-500">Supports JPG, JPEG, PNG screenshots and PDF receipts</span>
+                    <div className="flex items-center justify-center gap-2">
+                      <FileUp className="w-5 h-5 text-blue-600 shrink-0" />
+                      <span className="font-bold text-slate-700 text-xs">Choose or drag proof screenshot / PDF</span>
                     </div>
                   </div>
 
                   {/* PREVIEW OF SELECTED FILES */}
                   {proofFiles.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <div className="text-[11px] font-bold text-slate-700">Selected Files ({proofFiles.length}):</div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {proofFiles.map((file, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs"
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              {file.type === 'application/pdf' ? (
-                                <FileText className="w-4 h-4 text-rose-600 shrink-0" />
-                              ) : (
-                                <ImageIcon className="w-4 h-4 text-blue-600 shrink-0" />
-                              )}
-                              <span className="truncate text-slate-800 font-medium text-[11px]" title={file.name}>
-                                {file.name}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveProofFile(idx)}
-                              className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                              title="Remove file"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
+                    <div className="mt-2 space-y-1.5 max-h-28 overflow-y-auto">
+                      {proofFiles.map((file, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs"
+                        >
+                          <div className="flex items-center gap-1.5 truncate">
+                            {file.type === 'application/pdf' ? (
+                              <FileText className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            ) : (
+                              <ImageIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            )}
+                            <span className="truncate text-slate-800 font-medium text-[11px]" title={file.name}>
+                              {file.name}
+                            </span>
                           </div>
-                        ))}
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveProofFile(idx)}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                            title="Remove file"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Notes / Remarks</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Add verification notes, bank transfer details, or UPI receipt notes..."
+                  <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Notes (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Remarks or bank notes..."
                     value={proofNotes}
                     onChange={(e) => setProofNotes(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:border-indigo-600"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
                   />
                 </div>
 
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 font-medium space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <Clock className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Payment Proof Workflow Notice:</span>
-                  </div>
-                  <div>• Uploading proof sets status to <strong>&quot;Payment Proof Uploaded&quot;</strong>.</div>
-                  <div>• Payment is NOT automatically marked as completed upon upload.</div>
-                  <div>• Admin / Authorized user will verify proof $\rightarrow$ <strong>&quot;Payment Verified&quot;</strong> $\rightarrow$ <strong>&quot;Payment Completed&quot;</strong>.</div>
-                  <div>• <strong>&quot;Send Invoice to Production&quot;</strong> will appear ONLY once payment is <strong>&quot;Payment Completed&quot;</strong>.</div>
+                <div className="p-2 rounded-lg bg-blue-50/60 border border-blue-200 text-[10px] text-blue-900 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Uploading proof sets status to &quot;Payment Proof Uploaded&quot; for verification.</span>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setIsUploadProofModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition"
                   >
                     <UploadCloud className="w-3.5 h-3.5" />
-                    <span>Upload Payment Proof</span>
+                    <span>Upload Proof</span>
                   </button>
                 </div>
               </form>

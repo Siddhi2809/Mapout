@@ -1014,16 +1014,16 @@ export default function SalesOrdersPage() {
             <table className="w-full text-left text-xs table-fixed">
               <thead>
                 <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold text-[11px]">
-                  <th className="py-3 px-3 w-[13%]">Sales Order #</th>
-                  <th className="py-3 px-2 w-[11%]">Quotation Ref</th>
-                  <th className="py-3 px-3 w-[17%]">Customer Name</th>
-                  <th className="py-3 px-2 w-[9%]">Order Date</th>
-                  <th className="py-3 px-3 text-right font-bold w-[10%]">Grand Total</th>
-                  <th className="py-3 px-2 text-center w-[9%]">Quote Status</th>
-                  <th className="py-3 px-2 text-center w-[10%]">Prod Status</th>
-                  <th className="py-3 px-2 text-center w-[8%]">Packing</th>
-                  <th className="py-3 px-1 text-center w-[5%]">Photos</th>
-                  <th className="py-3 px-2 text-center w-[8%]">Actions</th>
+                  <th className="py-2.5 px-2.5 w-[12%]">Sales Order #</th>
+                  <th className="py-2.5 px-2 w-[15%]">Quotation Ref</th>
+                  <th className="py-2.5 px-2.5 w-[14%]">Customer Name</th>
+                  <th className="py-2.5 px-1.5 w-[8%]">Order Date</th>
+                  <th className="py-2.5 px-2.5 text-right font-bold w-[9%]">Grand Total</th>
+                  <th className="py-2.5 px-1 text-center w-[9%]">Quote Status</th>
+                  <th className="py-2.5 px-1 text-center w-[10%]">Prod Status</th>
+                  <th className="py-2.5 px-1 text-center w-[8%]">Packing</th>
+                  <th className="py-2.5 px-1 text-center w-[7%]">Photos</th>
+                  <th className="py-2.5 px-1.5 text-center w-[8%]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1034,38 +1034,38 @@ export default function SalesOrdersPage() {
                   const imagesCount = (so.productionImages?.length || 0) + (so.packedImage && !so.productionImages?.includes(so.packedImage) ? 1 : 0);
 
                   return (
-                    <tr key={so.id} className="hover:bg-slate-50/80 transition">
+                    <tr key={so.id} className="hover:bg-slate-50/70 transition">
                       {/* SO Number */}
-                      <td className="p-3.5">
-                        <div className="font-mono text-blue-600 font-bold flex items-center gap-1.5">
+                      <td className="py-2.5 px-2.5 align-middle">
+                        <div className="font-mono text-blue-600 font-bold flex items-center gap-1">
                           <span>{so.orderNumber}</span>
                           {so.paymentMode === 'COD' ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
-                              <HandCoins className="w-2.5 h-2.5 text-amber-600" />
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">
+                              <HandCoins className="w-2.5 h-2.5 text-amber-600 shrink-0" />
                               <span>COD</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                              <CreditCard className="w-2.5 h-2.5 text-blue-500" />
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                              <CreditCard className="w-2.5 h-2.5 text-blue-500 shrink-0" />
                               <span>Prepaid</span>
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] font-mono text-slate-500">{so.invoiceNumber || 'INV-AUTO'}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{so.salesperson || 'Rajesh Kumar'}</div>
+                        <div className="text-[10px] font-mono text-slate-500 leading-none mt-0.5">{so.invoiceNumber || 'INV-AUTO'}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 truncate leading-none">{so.salesperson || 'Rajesh Kumar'}</div>
                       </td>
 
                       {/* Quotation Ref & Action */}
-                      <td className="p-3.5">
+                      <td className="py-2.5 px-2 align-middle overflow-hidden">
                         {so.quotationNumber || linkedQuote ? (
-                          <div>
+                          <div className="w-full min-w-0 overflow-hidden">
                             <Link
                               href="/sales/quotations"
-                              className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded transition"
-                              title="View linked Quotation"
+                              className="inline-flex items-center gap-1 text-[10.5px] font-mono font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded transition max-w-full min-w-0"
+                              title={so.quotationNumber || linkedQuote?.quotationNumber}
                             >
-                              <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>{so.quotationNumber || linkedQuote?.quotationNumber}</span>
+                              <FileCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span className="truncate min-w-0">{so.quotationNumber || linkedQuote?.quotationNumber}</span>
                             </Link>
                           </div>
                         ) : (
@@ -1076,7 +1076,7 @@ export default function SalesOrdersPage() {
                               setQuoteWarrantyPeriod('1 Year');
                               setQuoteInitialStatus('Draft');
                             }}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition cursor-pointer"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded transition cursor-pointer whitespace-nowrap"
                             title="Create quotation from this sales order"
                           >
                             <Plus className="w-3 h-3 text-blue-600" />
@@ -1086,24 +1086,26 @@ export default function SalesOrdersPage() {
                       </td>
 
                       {/* Customer Name */}
-                      <td className="p-3.5 font-bold text-slate-900 max-w-[160px] truncate">
-                        {so.customerName}
+                      <td className="py-2.5 px-2.5 font-bold text-slate-900 align-middle overflow-hidden">
+                        <div className="truncate text-xs font-bold text-slate-900" title={so.customerName}>
+                          {so.customerName}
+                        </div>
                       </td>
 
                       {/* Order Date */}
-                      <td className="p-3.5 text-slate-600 font-mono whitespace-nowrap">
+                      <td className="py-2.5 px-1.5 text-slate-600 font-mono text-[11px] whitespace-nowrap align-middle">
                         {so.orderDate}
                       </td>
 
                       {/* Grand Total */}
-                      <td className="p-3.5 text-right font-bold text-slate-900 font-mono text-sm whitespace-nowrap">
-                        ₹{so.grandTotal.toLocaleString('en-IN')}
+                      <td className="py-2.5 px-2.5 text-right font-black text-slate-900 font-mono text-xs whitespace-nowrap align-middle">
+                        ₹{so.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 1 })}
                       </td>
 
                       {/* Quotation Status */}
-                      <td className="p-3.5 text-center">
+                      <td className="py-2.5 px-1 text-center align-middle">
                         {linkedQuote ? (
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getQuotationStatusBadge(linkedQuote.status)}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap border ${getQuotationStatusBadge(linkedQuote.status)}`}>
                             {linkedQuote.status}
                           </span>
                         ) : (
@@ -1112,19 +1114,17 @@ export default function SalesOrdersPage() {
                       </td>
 
                       {/* Production Status */}
-                      <td className="p-3.5 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getProductionStatusBadge(effectiveProdStatus)}`}>
+                      <td className="py-2.5 px-1 text-center align-middle">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap border ${getProductionStatusBadge(effectiveProdStatus)}`}>
                           {effectiveProdStatus || 'Pending'}
                         </span>
                       </td>
 
                       {/* Packing Status */}
-                      <td className="p-3.5 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      <td className="py-2.5 px-1 text-center align-middle">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap border ${
                           effectivePackingStatus === 'Packed'
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                            : effectivePackingStatus === 'Packing'
-                            ? 'bg-amber-100 text-amber-800 border-amber-300'
                             : 'bg-amber-100 text-amber-800 border-amber-300'
                         }`}>
                           {effectivePackingStatus}
@@ -1132,7 +1132,7 @@ export default function SalesOrdersPage() {
                       </td>
 
                       {/* Production Images */}
-                      <td className="p-3.5 text-center">
+                      <td className="py-2.5 px-1 text-center align-middle">
                         {imagesCount > 0 ? (
                           <div className="flex items-center justify-center">
                             <button
@@ -1146,19 +1146,19 @@ export default function SalesOrdersPage() {
                                   });
                                 }
                               }}
-                              className="group relative inline-flex items-center gap-1.5 p-1 pr-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition shadow-2xs cursor-pointer"
+                              className="group relative inline-flex items-center gap-1 p-0.5 pr-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition shadow-2xs cursor-pointer"
                               title="Click to zoom uploaded product/packing photos"
                             >
                               {(so.productionImages?.[0] || so.packedImage) && (
                                 <img
                                   src={so.productionImages?.[0] || so.packedImage}
                                   alt="Production proof"
-                                  className="w-7 h-7 object-cover rounded-md border border-blue-200 shadow-2xs group-hover:scale-105 transition"
+                                  className="w-6 h-6 object-cover rounded-md border border-blue-200 shadow-2xs"
                                 />
                               )}
-                              <div className="flex items-center gap-1">
-                                <Camera className="w-3.5 h-3.5 text-blue-600" />
-                                <span className="font-extrabold text-[11px] text-blue-800">{imagesCount}</span>
+                              <div className="flex items-center gap-0.5">
+                                <Camera className="w-3 h-3 text-blue-600" />
+                                <span className="font-extrabold text-[10px] text-blue-800">{imagesCount}</span>
                               </div>
                             </button>
                           </div>
@@ -1168,7 +1168,7 @@ export default function SalesOrdersPage() {
                       </td>
 
                       {/* Actions */}
-                      <td className="py-2.5 px-2 text-center overflow-hidden">
+                      <td className="py-2.5 px-1.5 text-center align-middle">
                         <div className="flex items-center justify-center gap-1">
                           {/* 1. If NO quotation exists: prompt "Create Quotation" */}
                           {!linkedQuote && !so.quotationNumber && (
@@ -1179,7 +1179,7 @@ export default function SalesOrdersPage() {
                                 setQuoteWarrantyPeriod('1 Year');
                                 setQuoteInitialStatus('Draft');
                               }}
-                              className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs cursor-pointer"
+                              className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs cursor-pointer"
                               title="Automatically create quotation using this order data"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -1191,7 +1191,7 @@ export default function SalesOrdersPage() {
                             <button
                               type="button"
                               onClick={() => handleGenerateInvoiceFromOrderQuote(linkedQuote.id, so.orderNumber)}
-                              className="p-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition shadow-2xs cursor-pointer"
+                              className="p-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition shadow-2xs cursor-pointer"
                               title="Customer Approved! Generate invoice to collect payment"
                             >
                               <FileText className="w-3.5 h-3.5" />
@@ -1206,7 +1206,7 @@ export default function SalesOrdersPage() {
                                 updateQuotationStatus(linkedQuote.id, 'Approved');
                                 showToast(`Quotation ${linkedQuote.quotationNumber} approved by client! "Send to Production" is now ready.`);
                               }}
-                              className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 transition cursor-pointer"
+                              className="p-1 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 transition cursor-pointer"
                               title="Client Confirmed - Mark Approved"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -1218,7 +1218,7 @@ export default function SalesOrdersPage() {
                             <button
                               type="button"
                               onClick={() => handleUpdateStatus(so.id, 'Dispatched')}
-                              className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-2xs cursor-pointer"
+                              className="p-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-2xs cursor-pointer"
                               title="Mark Dispatched"
                             >
                               <Truck className="w-3.5 h-3.5" />
@@ -1230,9 +1230,9 @@ export default function SalesOrdersPage() {
                             type="button"
                             onClick={() => handleOpenViewModal(so)}
                             title="View Complete Order Details & Workflow Tracker"
-                            className="p-1.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                            className="p-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 transition cursor-pointer"
                           >
-                            <Eye className="w-3.5 h-3.5 text-slate-600" />
+                            <Eye className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>

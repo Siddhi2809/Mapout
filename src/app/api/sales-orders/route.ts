@@ -204,11 +204,11 @@ export async function POST(request: Request) {
         serialNumber: body.serialNumber || null,
         items: {
           create: (body.items || []).map((i: any) => ({
-            productId: i.productId,
-            productName: i.productName,
-            sku: i.sku,
+            productId: i.productId || i.rawMaterialId || `prod_${Date.now()}`,
+            productName: i.productName || 'Item',
+            sku: i.sku || i.productId || i.rawMaterialId || 'SKU-DEFAULT',
             quantity: parseInt(i.quantity || 1, 10),
-            sellingPrice: parseFloat(i.sellingPrice || 0),
+            sellingPrice: parseFloat(i.sellingPrice || i.unitPrice || 0),
             unitPrice: parseFloat(i.unitPrice || i.sellingPrice || 0),
             discount: parseFloat(i.discount || 0),
             gstPercent: parseFloat(i.gstPercent || 18),
