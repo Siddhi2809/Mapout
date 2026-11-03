@@ -62,6 +62,18 @@ export default function FollowUpsPage() {
   const [salespersonFilter, setSalespersonFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Handle URL query parameters (e.g. ?search=...&tab=ALL)
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('search');
+      const tab = params.get('tab');
+      if (q) setSearchQuery(q);
+      if (tab) setActiveTab(tab as any);
+      else if (q) setActiveTab('ALL');
+    }
+  }, []);
+
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
@@ -169,17 +181,25 @@ export default function FollowUpsPage() {
           companyName: l.companyName,
           contactPerson: l.contactPerson || l.leadName,
           mobile: l.mobile,
+          alternateMobile: l.alternateMobile,
           email: l.email,
+          city: l.city,
+          state: l.state,
+          address: l.address,
+          requirement: l.requirement,
+          expectedValue: l.expectedValue,
           type: 'Lead',
-          followUpDate: l.nextFollowUpDate || todayStr,
-          followUpTime: '11:00 AM',
+          followUpDate: l.nextFollowUpDate || l.contactDate || todayStr,
+          followUpTime: l.contactTime || '11:00 AM',
           followUpType: 'Call',
           purpose: l.status === 'Contacted' ? 'Contacted Lead Discussion' : 'Follow-up Call Scheduled',
-          notes: l.notes || `Lead Status: ${l.status}. Requirement: ${l.requirement || 'OBD Products'}`,
+          notes: l.contactDate
+            ? `Contacted: ${l.contactDate}${l.contactTime ? ' ' + l.contactTime : ''} | ${l.notes || `Req: ${l.requirement || 'N/A'}`}`
+            : l.notes ? `${l.notes} | Req: ${l.requirement || 'N/A'}` : `Requirement: ${l.requirement || 'OBD Products'}. Location: ${[l.city, l.state].filter(Boolean).join(', ') || 'N/A'}`,
           status: 'Pending',
           assignedUser: l.salesperson || l.assignedUser || 'Sales Person',
           salesperson: l.salesperson || l.assignedUser || 'Sales Person',
-          createdAt: l.createdAt || todayStr,
+          createdAt: l.createdAt ? l.createdAt.split('T')[0] : todayStr,
         });
       }
     });
@@ -829,19 +849,19 @@ export default function FollowUpsPage() {
 
         {/* Follow-ups Table */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-hidden">
+            <table className="w-full text-left text-xs table-fixed">
               <thead>
-                <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold">
-                  <th className="p-3.5">Category & Customer</th>
-                  <th className="p-3.5">Contact Details</th>
-                  <th className="p-3.5">Quotation Ref</th>
-                  <th className="p-3.5">Follow-up Date & Time</th>
-                  <th className="p-3.5">Type & Purpose</th>
-                  <th className="p-3.5">Customer Response / Notes</th>
-                  <th className="p-3.5">Next Date</th>
-                  <th className="p-3.5 text-center">Status</th>
-                  <th className="p-3.5 text-center">Actions</th>
+                <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold text-[11px]">
+                  <th className="py-2.5 px-3 w-[18%]">Category & Customer</th>
+                  <th className="py-2.5 px-2 w-[13%]">Contact Details</th>
+                  <th className="py-2.5 px-2 w-[10%]">Quotation Ref</th>
+                  <th className="py-2.5 px-2 w-[10%]">Date & Time</th>
+                  <th className="py-2.5 px-2 w-[11%]">Type & Purpose</th>
+                  <th className="py-2.5 px-3 w-[18%]">Response / Notes</th>
+                  <th className="py-2.5 px-2 w-[8%]">Next Date</th>
+                  <th className="py-2.5 px-2 text-center w-[6%]">Status</th>
+                  <th className="py-2.5 px-2 text-center w-[6%]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -933,7 +953,17 @@ export default function FollowUpsPage() {
                         )}
                       </td>
 
-                      <td className="p-3.5 max-w-[220px]">
+                      <td className="p-3.5 max-w-[240px]">
+                        {f.requirement && (
+                          <div className="text-[11px] font-semibold text-blue-800 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200 mb-1 inline-block truncate max-w-full">
+                            Req: {f.requirement}
+                          </div>
+                        )}
+                        {f.expectedValue !== undefined && Number(f.expectedValue) > 0 && (
+                          <div className="text-[10px] font-mono font-bold text-emerald-700 mb-0.5">
+                            Exp. Value: ₹{Number(f.expectedValue).toLocaleString('en-IN')}
+                          </div>
+                        )}
                         <div className="text-slate-700 text-xs font-medium line-clamp-2">
                           {f.notes || <span className="text-slate-400 italic">No notes recorded yet</span>}
                         </div>
@@ -959,21 +989,24 @@ export default function FollowUpsPage() {
                         </span>
                       </td>
 
-                      <td className="p-3.5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="py-2.5 px-2 text-center overflow-hidden">
+                        <div className="flex items-center justify-center gap-1">
                           {f.status !== 'Completed' ? (
                             <button
+                              type="button"
                               onClick={() => handleOpenResponseModal(f)}
-                              className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-xs flex items-center gap-1 cursor-pointer"
+                              className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition"
                               title="Record Customer Response & Outcome"
                             >
                               <MessageSquare className="w-3 h-3" />
-                              <span>Record Outcome</span>
+                              <span>Outcome</span>
                             </button>
                           ) : (
                             <button
+                              type="button"
                               onClick={() => handleOpenResponseModal(f)}
-                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[10px] cursor-pointer"
+                              className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[10px] cursor-pointer transition border border-slate-200"
+                              title="Update Follow-up Outcome"
                             >
                               Update
                             </button>

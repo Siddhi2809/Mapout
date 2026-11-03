@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { SALES_NAV } from '@/lib/nav';
 import { useERP } from '@/context/ERPContext';
@@ -49,6 +50,7 @@ import {
   Globe,
   Phone,
   Trash2,
+  ExternalLink,
 } from 'lucide-react';
 
 const KEY_PROFILE_FIELDS: { key: keyof Lead; label: string; placeholder: string; type?: string }[] = [
@@ -67,6 +69,8 @@ const KEY_PROFILE_FIELDS: { key: keyof Lead; label: string; placeholder: string;
   { key: 'website', label: 'Website', placeholder: 'e.g. www.abc.com' },
   { key: 'requirement', label: 'Requirement', placeholder: 'e.g. OBD GPS Trackers & Software' },
   { key: 'salesperson', label: 'Salesperson', placeholder: 'e.g. Rajesh Kumar' },
+  { key: 'contactDate', label: 'Contact Date', placeholder: 'YYYY-MM-DD', type: 'date' },
+  { key: 'contactTime', label: 'Contact Time', placeholder: 'e.g. 11:30 AM' },
   { key: 'notes', label: 'Notes / Remarks', placeholder: 'e.g. Interested in bulk pilot testing' },
 ];
 
@@ -172,8 +176,16 @@ export default function LeadsPage() {
   const [formRequirement, setFormRequirement] = useState('');
   const [formProductId, setFormProductId] = useState('');
   const [formExpectedValue, setFormExpectedValue] = useState('100000');
-  const [formStatus, setFormStatus] = useState<LeadStatus>('New');
+  const [formStatus, setFormStatus] = useState<LeadStatus>('Not Contacted');
+  const [formContactDate, setFormContactDate] = useState('');
+  const [formContactTime, setFormContactTime] = useState('');
   const [formNotes, setFormNotes] = useState('');
+
+  // Quick Contact Timing Modal State
+  const [isContactTimeModalOpen, setIsContactTimeModalOpen] = useState(false);
+  const [selectedLeadForContactTime, setSelectedLeadForContactTime] = useState<Lead | null>(null);
+  const [quickContactDate, setQuickContactDate] = useState('');
+  const [quickContactTime, setQuickContactTime] = useState('');
 
   // Form FollowUp State
   const [followUpDate, setFollowUpDate] = useState(new Date().toISOString().split('T')[0]);
@@ -199,9 +211,13 @@ export default function LeadsPage() {
       (l.mobile || '').includes(q) ||
       (l.email || '').toLowerCase().includes(q) ||
       (l.city || '').toLowerCase().includes(q) ||
-      (l.requirement || '').toLowerCase().includes(q);
+      (l.requirement || '').toLowerCase().includes(q) ||
+      (l.salesperson || '').toLowerCase().includes(q) ||
+      (l.contactDate || '').toLowerCase().includes(q);
 
-    const matchStatus = statusFilter === 'ALL' || l.status === statusFilter;
+    const matchStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'Not Contacted' ? (l.status === 'Not Contacted' || l.status === 'New') : l.status === statusFilter);
     const matchSource = sourceFilter === 'ALL' || l.source === sourceFilter;
 
     let matchCompleteness = true;
@@ -270,7 +286,9 @@ export default function LeadsPage() {
     setFormRequirement('');
     if (products.length > 0) setFormProductId(products[0].id);
     setFormExpectedValue('100000');
-    setFormStatus('New');
+    setFormStatus('Not Contacted');
+    setFormContactDate('');
+    setFormContactTime('');
     setFormNotes('');
     setIsLeadModalOpen(true);
   };
@@ -296,7 +314,9 @@ export default function LeadsPage() {
     setFormRequirement(l.requirement || '');
     setFormProductId(l.interestedProductId || (products.length > 0 ? products[0].id : ''));
     setFormExpectedValue(String(l.expectedValue || 0));
-    setFormStatus(l.status);
+    setFormStatus(l.status === 'New' ? 'Not Contacted' : (l.status as LeadStatus));
+    setFormContactDate(l.contactDate || '');
+    setFormContactTime(l.contactTime || '');
     setFormNotes(l.notes || '');
     setIsLeadModalOpen(true);
   };
@@ -364,6 +384,8 @@ export default function LeadsPage() {
       expectedValue: val,
       assignedUser: formSalesperson.trim(),
       status: formStatus,
+      contactDate: formContactDate.trim() || (formStatus === 'Contacted' ? new Date().toISOString().split('T')[0] : undefined),
+      contactTime: formContactTime.trim() || (formStatus === 'Contacted' ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined),
       notes: formNotes.trim(),
     };
 
@@ -379,6 +401,34 @@ export default function LeadsPage() {
     }
 
     setIsLeadModalOpen(false);
+  };
+
+  // Open Quick Contact Timing Modal
+  const handleOpenContactTimeModal = (l: Lead) => {
+    setSelectedLeadForContactTime(l);
+    setQuickContactDate(l.contactDate || new Date().toISOString().split('T')[0]);
+    setQuickContactTime(l.contactTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    setIsContactTimeModalOpen(true);
+  };
+
+  // Save Quick Contact Timing
+  const handleSaveContactTime = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLeadForContactTime) return;
+
+    const nextStatus = selectedLeadForContactTime.status === 'Not Contacted' || selectedLeadForContactTime.status === 'New'
+      ? 'Contacted'
+      : selectedLeadForContactTime.status;
+
+    await updateLeadFull(selectedLeadForContactTime.id, {
+      leadNumber: selectedLeadForContactTime.leadNumber,
+      contactDate: quickContactDate.trim() || undefined,
+      contactTime: quickContactTime.trim() || undefined,
+      status: nextStatus,
+    });
+
+    showToast(`✓ Contact timing recorded for "${selectedLeadForContactTime.companyName || selectedLeadForContactTime.leadName}": ${quickContactDate} at ${quickContactTime}`);
+    setIsContactTimeModalOpen(false);
   };
 
   // Open Follow-up Modal
@@ -406,9 +456,24 @@ export default function LeadsPage() {
       notes: followUpNotes,
       status: 'Pending',
       assignedUser: selectedLeadForFollowUp.salesperson || selectedLeadForFollowUp.assignedUser || 'Sales Team',
+      companyName: selectedLeadForFollowUp.companyName,
+      contactPerson: selectedLeadForFollowUp.contactPerson,
+      mobile: selectedLeadForFollowUp.mobile,
+      alternateMobile: selectedLeadForFollowUp.alternateMobile,
+      email: selectedLeadForFollowUp.email,
+      city: selectedLeadForFollowUp.city,
+      state: selectedLeadForFollowUp.state,
+      address: selectedLeadForFollowUp.address,
+      requirement: selectedLeadForFollowUp.requirement,
+      expectedValue: selectedLeadForFollowUp.expectedValue,
     });
 
-    showToast(`Follow-up call scheduled for ${selectedLeadForFollowUp.companyName || selectedLeadForFollowUp.leadName}.`);
+    updateLeadFull(selectedLeadForFollowUp.id, {
+      leadNumber: selectedLeadForFollowUp.leadNumber,
+      status: 'Follow-up',
+    });
+
+    showToast(`Follow-up scheduled for ${selectedLeadForFollowUp.companyName || selectedLeadForFollowUp.leadName} & status updated to Follow-up.`);
     setIsFollowUpModalOpen(false);
   };
 
@@ -543,31 +608,35 @@ export default function LeadsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'Converted':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
-      case 'Send Quotation':
-        return 'bg-emerald-50 text-emerald-800 border-emerald-300';
-      case 'Interested':
-      case 'Quotation Sent':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'Not Contacted':
       case 'New':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-slate-100 text-slate-700 border-slate-300 hover:border-slate-400';
       case 'Contacted':
+        return 'bg-blue-100 text-blue-800 border-blue-300 hover:border-blue-400';
       case 'Follow-up':
-        return 'bg-amber-100 text-amber-800 border-amber-300';
-      case 'Lost':
-        return 'bg-rose-100 text-rose-800 border-rose-300';
+        return 'bg-amber-100 text-amber-800 border-amber-300 hover:border-amber-400';
+      case 'Interested':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:border-emerald-400';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-300';
     }
   };
 
   const handleQuickStatusChange = (l: Lead, newStatus: LeadStatus) => {
-    updateLeadFull(l.id, { leadNumber: l.leadNumber, status: newStatus });
-    if (newStatus === 'Follow-up' || newStatus === 'Contacted') {
-      showToast(`✓ Lead "${l.companyName || l.leadName}" updated to ${newStatus} — automatically added to Follow-ups!`);
-    } else if (newStatus === 'Send Quotation' || newStatus === 'Quotation Sent') {
-      showToast(`✓ Lead "${l.companyName || l.leadName}" updated to Send Quotation — added to Customers & Quotations!`);
+    const updates: Partial<Lead> = { leadNumber: l.leadNumber, status: newStatus };
+    if (newStatus === 'Contacted') {
+      const today = new Date().toISOString().split('T')[0];
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (!l.contactDate) updates.contactDate = today;
+      if (!l.contactTime) updates.contactTime = nowTime;
+    }
+    updateLeadFull(l.id, updates);
+    if (newStatus === 'Follow-up') {
+      showToast(`✓ Lead "${l.companyName || l.leadName}" updated to Follow-up — recorded with all details in Follow-ups!`);
+    } else if (newStatus === 'Contacted') {
+      showToast(`✓ Lead "${l.companyName || l.leadName}" marked Contacted — contact date & time recorded!`);
+    } else if (newStatus === 'Interested') {
+      showToast(`✓ Lead "${l.companyName || l.leadName}" marked as Interested!`);
     } else {
       showToast(`Lead "${l.companyName || l.leadName}" status updated to ${newStatus}.`);
     }
@@ -670,58 +739,29 @@ export default function LeadsPage() {
           </div>
         </div>
 
-        {/* UPCOMING FOLLOW-UPS WIDGET */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <PhoneCall className="w-4 h-4 text-blue-600" /> Upcoming Scheduled CRM Follow-ups
-            </h3>
-            <span className="text-[11px] text-blue-800 font-bold bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-              {pendingFollowups.length} Pending Reminders
-            </span>
+        {/* PENDING FOLLOW-UPS NOTIFICATION (Compact single row) */}
+        {pendingFollowups.length > 0 && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl px-4 py-2 flex items-center justify-between text-xs shadow-2xs">
+            <div className="flex items-center gap-2 text-slate-700">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+              <span>
+                <strong className="text-blue-900">{pendingFollowups.length} CRM Follow-ups scheduled</strong>
+                {pendingFollowups[0] && (
+                  <span className="text-slate-600 ml-1.5 hidden sm:inline">
+                    — Next: <strong>{pendingFollowups[0].leadOrCustomerName}</strong> on {pendingFollowups[0].followUpDate} at {pendingFollowups[0].followUpTime}
+                  </span>
+                )}
+              </span>
+            </div>
+            <Link
+              href="/sales/follow-ups"
+              className="text-blue-700 hover:text-blue-900 font-bold hover:underline flex items-center gap-1 text-[11px] shrink-0"
+            >
+              <span>Follow-ups Dashboard</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {followUps.slice(0, 4).map((f) => (
-              <div
-                key={f.id}
-                className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 text-xs hover:border-slate-300 transition"
-              >
-                <div className="space-y-1">
-                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                    {f.leadOrCustomerName}
-                    <span className="text-[10px] text-slate-500 font-mono font-normal">({f.type})</span>
-                  </div>
-                  <div className="text-slate-600 text-[11px]">{f.purpose}</div>
-                  <div className="text-[11px] text-blue-700 font-mono font-semibold flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-blue-600" /> {f.followUpDate} @ {f.followUpTime}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1 text-right">
-                  {f.status === 'Pending' ? (
-                    <button
-                      onClick={() => updateFollowUpStatusFull(f.id, 'Completed')}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-800 hover:bg-emerald-200 text-[11px] font-bold transition"
-                    >
-                      Mark Done
-                    </button>
-                  ) : (
-                    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
-                      {f.status}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {followUps.length === 0 && (
-              <div className="col-span-2 text-center py-6 text-slate-500 text-xs font-medium">
-                No scheduled follow-up calls found.
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
         {/* Filter Bar */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
@@ -773,14 +813,10 @@ export default function LeadsPage() {
                 className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
               >
                 <option value="ALL">All Statuses</option>
-                <option value="New">New</option>
+                <option value="Not Contacted">Not Contacted</option>
                 <option value="Contacted">Contacted</option>
-                <option value="Interested">Interested</option>
                 <option value="Follow-up">Follow-up</option>
-                <option value="Send Quotation">Send Quotation</option>
-                <option value="Quotation Sent">Quotation Sent</option>
-                <option value="Converted">Converted</option>
-                <option value="Lost">Lost</option>
+                <option value="Interested">Interested</option>
               </select>
 
               <select
@@ -892,19 +928,17 @@ export default function LeadsPage() {
 
         {/* Lead Table */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-hidden">
+            <table className="w-full text-left text-xs table-fixed">
               <thead>
-                <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold">
-                  <th className="p-3.5">Lead ID</th>
-                  <th className="p-3.5">Lead & Company</th>
-                  <th className="p-3.5">Contact Details</th>
-                  <th className="p-3.5">Location & Requirement</th>
-                  <th className="p-3.5 text-center">Profile Completeness</th>
-                  <th className="p-3.5 text-right">Expected Value</th>
-                  <th className="p-3.5">Salesperson</th>
-                  <th className="p-3.5 text-center">Status</th>
-                  <th className="p-3.5 text-center">Actions</th>
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold text-[11px]">
+                  <th className="py-2.5 px-3 w-[10%]">Lead ID</th>
+                  <th className="py-2.5 px-3 w-[20%]">Company & POC</th>
+                  <th className="py-2.5 px-3 w-[15%]">Contact Details</th>
+                  <th className="py-2.5 px-3 w-[17%]">Location & Req</th>
+                  <th className="py-2.5 px-3 w-[14%]">Salesperson</th>
+                  <th className="py-2.5 px-2 text-center w-[12%]">Status</th>
+                  <th className="py-2.5 px-2 text-center w-[12%]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -912,143 +946,171 @@ export default function LeadsPage() {
                   const audit = getLeadProfileAudit(l);
                   return (
                     <tr key={l.id} className="hover:bg-slate-50/80 transition">
-                      <td className="p-3.5 font-mono text-blue-600 font-bold">
+                      {/* Lead ID */}
+                      <td className="py-2 px-3 font-mono text-blue-600 font-bold whitespace-nowrap">
                         <div>{l.leadNumber}</div>
                         <div className="text-[10px] text-slate-500 font-sans font-medium flex items-center gap-1 mt-0.5">
                           <Calendar className="w-2.5 h-2.5 text-slate-400" />
                           {l.createdAt ? l.createdAt.split('T')[0] : 'N/A'}
                         </div>
-                        {l.importId && (
-                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Excel Import
-                          </span>
-                        )}
                       </td>
-                      <td className="p-3.5 max-w-[200px]">
-                        <div className="font-bold text-slate-900 truncate">{l.companyName || l.leadName}</div>
+
+                      {/* Company & POC */}
+                      <td className="py-2 px-3">
+                        <div className="font-bold text-slate-900 leading-tight">{l.companyName || l.leadName}</div>
                         {l.contactPerson && l.contactPerson !== l.companyName && (
                           <div className="text-[11px] text-slate-500 font-medium truncate">POC: {l.contactPerson}</div>
                         )}
-                        {l.leadName && l.leadName !== l.companyName && (
-                          <div className="text-[10px] text-slate-400 truncate">{l.leadName}</div>
+                        {audit.missing.length === 0 ? (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-700 font-semibold mt-0.5">
+                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> 100% Complete
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenProfileModal(l)}
+                            className="inline-flex items-center gap-0.5 text-[10px] text-amber-700 hover:text-amber-900 font-semibold hover:underline mt-0.5 text-left"
+                            title="Click to complete missing details"
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                            <span>{audit.missing.length} missing ({audit.percent}%)</span>
+                          </button>
                         )}
                       </td>
-                      <td className="p-3.5 max-w-[190px]">
+
+                      {/* Contact Details */}
+                      <td className="py-2 px-3">
                         {l.mobile ? (
                           <div className="text-slate-900 font-mono font-medium flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-slate-400" /> {l.mobile}
+                            <Phone className="w-3 h-3 text-slate-400 shrink-0" /> {l.mobile}
                           </div>
                         ) : (
                           <div className="text-[11px] text-amber-600 italic">No mobile</div>
                         )}
                         {l.email ? (
-                          <div className="text-[11px] text-slate-500 truncate flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-slate-400" /> {l.email}
+                          <div className="text-[11px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                            <Mail className="w-3 h-3 text-slate-400 shrink-0" /> {l.email}
                           </div>
-                        ) : (
-                          <div className="text-[11px] text-amber-600 italic">No email</div>
-                        )}
+                        ) : null}
                       </td>
-                      <td className="p-3.5 max-w-[190px]">
+
+                      {/* Location & Requirement */}
+                      <td className="py-2 px-3">
                         {(l.city || l.state) && (
-                          <div className="text-slate-800 font-medium flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-slate-400" />
+                          <div className="text-slate-800 font-medium flex items-center gap-1 truncate">
+                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
                             {[l.city, l.state].filter(Boolean).join(', ')}
                           </div>
                         )}
-                        {l.requirement && (
-                          <div className="text-[11px] text-slate-600 truncate mt-0.5">
+                        {l.requirement ? (
+                          <div className="text-[11px] text-slate-600 truncate mt-0.5" title={l.requirement}>
                             <span className="font-semibold text-slate-700">Req:</span> {l.requirement}
                           </div>
-                        )}
-                        {!l.city && !l.state && !l.requirement && (
-                          <span className="text-[11px] text-slate-400 italic">No location/requirement</span>
+                        ) : (
+                          !l.city && !l.state && <span className="text-[11px] text-slate-400 italic">No location</span>
                         )}
                       </td>
-                      <td className="p-3.5 text-center">
-                        {audit.missing.length === 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3" /> Complete (100%)
-                          </span>
+
+                      {/* Salesperson & Contact Time */}
+                      <td className="py-2 px-3">
+                        <div className="font-semibold text-slate-900 flex items-center justify-between gap-1">
+                          <span className="truncate">{l.salesperson || l.assignedUser || 'Sales Team'}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenContactTimeModal(l)}
+                            title="Set Contact Date & Time"
+                            className="p-0.5 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        {l.contactDate ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenContactTimeModal(l)}
+                            className="text-[10px] text-blue-800 font-semibold flex items-center gap-1 mt-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded px-1.5 py-0.5 text-left transition shadow-2xs group"
+                            title="Click to edit contact timing"
+                          >
+                            <Calendar className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                            <span>{l.contactDate}</span>
+                            {l.contactTime && (
+                              <>
+                                <span className="text-blue-300">•</span>
+                                <Clock className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                                <span>{l.contactTime}</span>
+                              </>
+                            )}
+                          </button>
                         ) : (
                           <button
-                            onClick={() => handleOpenProfileModal(l)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition"
-                            title={`Click to complete ${audit.missing.length} missing fields`}
+                            type="button"
+                            onClick={() => handleOpenContactTimeModal(l)}
+                            className="text-[10px] text-slate-400 hover:text-blue-600 hover:underline italic mt-0.5 flex items-center gap-1 text-left transition"
+                            title="Click to record contact date & time"
                           >
-                            <AlertTriangle className="w-3 h-3 text-amber-600" />
-                            {audit.missing.length} Missing ({audit.percent}%)
+                            <Clock className="w-2.5 h-2.5" /> + Log Contact Time
                           </button>
                         )}
                       </td>
-                      <td className="p-3.5 text-right font-bold text-emerald-700 font-mono text-xs">
-                        ₹{(l.expectedValue || 0).toLocaleString('en-IN')}
+
+                      {/* Status */}
+                      <td className="py-2 px-2 text-center overflow-hidden">
+                        <div className="inline-flex flex-col items-center gap-1 max-w-full">
+                          <select
+                            value={l.status === 'New' ? 'Not Contacted' : l.status}
+                            onChange={(e) => handleQuickStatusChange(l, e.target.value as LeadStatus)}
+                            className={`max-w-full px-2 py-1 rounded-lg text-[10px] font-bold border cursor-pointer focus:outline-none transition shadow-2xs ${getStatusBadge(l.status)}`}
+                            title="Click to update lead status"
+                          >
+                            <option value="Not Contacted">Not Contacted</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Follow-up">Follow-up</option>
+                            <option value="Interested">Interested</option>
+                          </select>
+                          {l.status === 'Follow-up' && (
+                            <Link
+                              href={`/sales/follow-ups?search=${encodeURIComponent(l.leadNumber || l.companyName || l.leadName || '')}&tab=ALL`}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 text-[9px] font-bold transition shadow-2xs whitespace-nowrap"
+                              title="Display this lead with complete data in Follow-up page"
+                            >
+                              <span>Follow-up</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </Link>
+                          )}
+                        </div>
                       </td>
-                      <td className="p-3.5 text-slate-700 font-medium">
-                        {l.salesperson || l.assignedUser || 'Sales Team'}
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <select
-                          value={l.status}
-                          onChange={(e) => handleQuickStatusChange(l, e.target.value as LeadStatus)}
-                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border cursor-pointer focus:outline-none transition shadow-2xs ${getStatusBadge(l.status)}`}
-                          title="Click to update lead status"
-                        >
-                          <option value="New">New</option>
-                          <option value="Contacted">Contacted (→ Follow-ups)</option>
-                          <option value="Follow-up">Follow-up (→ Follow-ups)</option>
-                          <option value="Interested">Interested</option>
-                          <option value="Send Quotation">Send Quotation (→ Cust & Quote)</option>
-                          <option value="Quotation Sent">Quotation Sent (→ Cust & Quote)</option>
-                          <option value="Converted">Converted</option>
-                          <option value="Lost">Lost</option>
-                        </select>
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {/* Profile Details & Completion Button */}
+
+                      {/* Actions */}
+                      <td className="py-2 px-2 text-center overflow-hidden">
+                        <div className="flex items-center justify-center gap-1">
+                          {/* Profile Details Button (view & edit full details) */}
                           <button
+                            type="button"
                             onClick={() => handleOpenProfileModal(l)}
-                            title="View Details & Complete Profile"
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-300 text-slate-800 hover:bg-slate-200 font-semibold text-[11px] flex items-center gap-1 transition"
+                            title="View & Edit Lead Details"
+                            className="p-1.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition cursor-pointer"
                           >
-                            <Eye className="w-3.5 h-3.5 text-slate-700" /> Profile
-                          </button>
-
-                          {/* Call / Follow-up */}
-                          <button
-                            onClick={() => handleOpenFollowUpModal(l)}
-                            title="Schedule Follow-up Call"
-                            className="px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-semibold text-[11px] flex items-center gap-1 transition"
-                          >
-                            <PhoneCall className="w-3.5 h-3.5 text-blue-600" />
-                          </button>
-
-                          {/* Edit Lead */}
-                          <button
-                            onClick={() => handleOpenEditLeadModal(l)}
-                            title="Edit Lead"
-                            className="p-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Eye className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Convert to Customer */}
                           {l.status !== 'Converted' && (
                             <button
+                              type="button"
                               onClick={() => handleConvertLead(l)}
                               title="Convert Lead to Customer Account"
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-semibold text-[11px] hover:bg-emerald-700 shadow-sm flex items-center gap-1 transition"
+                              className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 transition cursor-pointer"
                             >
-                              <UserCheck className="w-3.5 h-3.5" /> Convert
+                              <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
                             </button>
                           )}
 
                           {/* Delete Lead */}
                           <button
+                            type="button"
                             onClick={() => setLeadToDelete(l)}
-                            title="Delete Lead from Database"
-                            className="p-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 hover:text-rose-800 hover:bg-rose-100 transition"
+                            title="Delete Lead"
+                            className="p-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 hover:text-rose-800 hover:bg-rose-100 transition cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1060,7 +1122,7 @@ export default function LeadsPage() {
 
                 {filteredLeads.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="p-12 text-center text-slate-500 text-xs font-medium">
+                    <td colSpan={7} className="p-12 text-center text-slate-500 text-xs font-medium">
                       No CRM lead records found. Use &quot;Add Lead&quot; or &quot;Import Leads&quot; to begin.
                     </td>
                   </tr>
@@ -2072,19 +2134,56 @@ export default function LeadsPage() {
                     <div>
                       <label className="block text-slate-700 font-bold mb-1">Lead Pipeline Status</label>
                       <select
-                        value={formStatus}
+                        value={formStatus === 'New' ? 'Not Contacted' : formStatus}
                         onChange={(e) => setFormStatus(e.target.value as any)}
                         className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition"
                       >
-                        <option value="New">New</option>
+                        <option value="Not Contacted">Not Contacted</option>
                         <option value="Contacted">Contacted</option>
-                        <option value="Interested">Interested</option>
                         <option value="Follow-up">Follow-up</option>
-                        <option value="Send Quotation">Send Quotation</option>
-                        <option value="Quotation Sent">Quotation Sent</option>
-                        <option value="Converted">Converted</option>
-                        <option value="Lost">Lost</option>
+                        <option value="Interested">Interested</option>
                       </select>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-slate-700 font-bold flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-500" /> Contact Date
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setFormContactDate(new Date().toISOString().split('T')[0])}
+                          className="text-[10px] text-blue-600 font-semibold hover:underline"
+                        >
+                          Today
+                        </button>
+                      </div>
+                      <input
+                        type="date"
+                        value={formContactDate}
+                        onChange={(e) => setFormContactDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-slate-700 font-bold flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-500" /> Contact Time
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setFormContactTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}
+                          className="text-[10px] text-blue-600 font-semibold hover:underline"
+                        >
+                          Now
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="e.g. 11:30 AM"
+                        value={formContactTime}
+                        onChange={(e) => setFormContactTime(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition"
+                      />
                     </div>
                     <div className="sm:col-span-2 lg:col-span-3">
                       <label className="block text-slate-700 font-bold mb-1">Address</label>
@@ -2316,6 +2415,112 @@ export default function LeadsPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* QUICK CONTACT DATE & TIME MODAL */}
+        {isContactTimeModalOpen && selectedLeadForContactTime && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setIsContactTimeModalOpen(false);
+            }}
+          >
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                    <Clock className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm">Log Salesperson Contact Timing</h3>
+                    <p className="text-[11px] text-blue-100 truncate max-w-[260px]">
+                      {selectedLeadForContactTime.companyName || selectedLeadForContactTime.leadName} ({selectedLeadForContactTime.leadNumber})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsContactTimeModalOpen(false)}
+                  className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveContactTime} className="p-6 space-y-4">
+                <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2.5">
+                  <Calendar className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold">Record salesperson contact timing:</div>
+                    <div className="text-[11px] text-blue-700 mt-0.5">
+                      Salesperson: <strong>{selectedLeadForContactTime.salesperson || selectedLeadForContactTime.assignedUser || 'Sales Team'}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-slate-500" /> Contact Date *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setQuickContactDate(new Date().toISOString().split('T')[0])}
+                      className="text-[11px] text-blue-600 font-bold hover:underline"
+                    >
+                      Set Today
+                    </button>
+                  </div>
+                  <input
+                    type="date"
+                    required
+                    value={quickContactDate}
+                    onChange={(e) => setQuickContactDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-500" /> Contact Time *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setQuickContactTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}
+                      className="text-[11px] text-blue-600 font-bold hover:underline"
+                    >
+                      Set Current Time
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 11:30 AM or 15:45"
+                    value={quickContactTime}
+                    onChange={(e) => setQuickContactTime(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsContactTimeModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" /> Save Contact Timing
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

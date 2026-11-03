@@ -438,10 +438,11 @@ export type LeadSource =
   | 'Other';
 
 export type LeadStatus =
-  | 'New'
+  | 'Not Contacted'
   | 'Contacted'
-  | 'Interested'
   | 'Follow-up'
+  | 'Interested'
+  | 'New'
   | 'Send Quotation'
   | 'Quotation Sent'
   | 'Converted'
@@ -471,6 +472,8 @@ export interface Lead {
   expectedValue?: number;
   assignedUser?: string;
   status: LeadStatus;
+  contactDate?: string;
+  contactTime?: string;
   nextFollowUpDate?: string;
   notes?: string;
   importId?: string;
@@ -507,7 +510,13 @@ export interface FollowUp {
   companyName?: string;
   contactPerson?: string;
   mobile?: string;
+  alternateMobile?: string;
   email?: string;
+  city?: string;
+  state?: string;
+  address?: string;
+  requirement?: string;
+  expectedValue?: number;
   quotationId?: string;
   quotationNumber?: string;
   invoiceId?: string;

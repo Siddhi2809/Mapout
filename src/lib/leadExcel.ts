@@ -22,6 +22,8 @@ export interface ParsedLeadRow {
   expectedValue: number;
   notes: string;
   status?: LeadStatus;
+  contactDate?: string;
+  contactTime?: string;
   // Analysis
   isValid: boolean;
   validationError?: string;
@@ -118,6 +120,8 @@ export function downloadLeadExcelTemplate() {
     'Expected Value',
     'Notes',
     'Status',
+    'Contact Date',
+    'Contact Time',
   ];
 
   // Sample data explicitly demonstrating incomplete data is allowed
@@ -142,6 +146,8 @@ export function downloadLeadExcelTemplate() {
       500000,
       'High priority inquiry received from website contact form',
       'Contacted',
+      '2026-11-02',
+      '11:30 AM',
     ],
     [
       'XYZ Traders',
@@ -163,6 +169,8 @@ export function downloadLeadExcelTemplate() {
       250000,
       'Referred by existing client Bansal Cargo',
       'Follow-up',
+      '2026-11-01',
+      '03:45 PM',
     ],
     [
       'Omkar Enterprises',
@@ -183,6 +191,9 @@ export function downloadLeadExcelTemplate() {
       'Heavy duty battery cables',
       150000,
       'Inquiry received over phone; contact details to be completed later',
+      'Not Contacted',
+      '',
+      '',
     ],
   ];
 
@@ -210,6 +221,8 @@ export function downloadLeadExcelTemplate() {
     { wch: 16 }, // Expected Value
     { wch: 35 }, // Notes
     { wch: 18 }, // Status
+    { wch: 15 }, // Contact Date
+    { wch: 15 }, // Contact Time
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'Leads Template');
@@ -306,6 +319,8 @@ export function analyzeLeadsForImport(
     requirement: 'Requirement',
     expectedValue: 'Expected Value',
     notes: 'Notes',
+    contactDate: 'Contact Date',
+    contactTime: 'Contact Time',
   };
 
   const fieldFillCounts: { [key: string]: number } = {};
@@ -338,16 +353,18 @@ export function analyzeLeadsForImport(
     const rawVal = findValue(row, ['Expected Value', 'Deal Value', 'Value', 'Budget', 'Estimated Value', 'Amount']);
     const expectedValue = parseFloat(rawVal) || 0;
     const notes = findValue(row, ['Notes', 'Remarks', 'Comments', 'Details', 'Background']);
+    const contactDate = findValue(row, ['Contact Date', 'Contacted Date', 'Call Date', 'Date Contacted']);
+    const contactTime = findValue(row, ['Contact Time', 'Contacted Time', 'Call Time', 'Time Contacted']);
     const rawStatus = findValue(row, ['Status', 'Lead Status', 'Stage', 'Current Status']);
-    let rowStatus: LeadStatus = 'New';
+    let rowStatus: LeadStatus = 'Not Contacted';
     if (rawStatus) {
       const sLow = rawStatus.toLowerCase();
-      if (sLow.includes('follow')) rowStatus = 'Follow-up';
+      if (sLow.includes('not contact')) rowStatus = 'Not Contacted';
+      else if (sLow.includes('follow')) rowStatus = 'Follow-up';
       else if (sLow.includes('contact')) rowStatus = 'Contacted';
-      else if (sLow.includes('send quote') || sLow.includes('send quotation') || sLow.includes('quote')) rowStatus = 'Send Quotation';
-      else if (sLow.includes('convert')) rowStatus = 'Converted';
       else if (sLow.includes('interest')) rowStatus = 'Interested';
-      else if (sLow.includes('lost')) rowStatus = 'Lost';
+      else if (sLow.includes('new')) rowStatus = 'Not Contacted';
+      else if (sLow.includes('quote') || sLow.includes('convert')) rowStatus = 'Interested';
     }
 
     // Check availability
@@ -373,6 +390,8 @@ export function analyzeLeadsForImport(
       requirement,
       expectedValue: expectedValue > 0 ? expectedValue : '',
       notes,
+      contactDate,
+      contactTime,
     };
 
     Object.entries(fieldKeys).forEach(([key, label]) => {
@@ -483,6 +502,8 @@ export function analyzeLeadsForImport(
       expectedValue,
       notes,
       status: rowStatus,
+      contactDate,
+      contactTime,
       isValid,
       validationError,
       isDuplicate,

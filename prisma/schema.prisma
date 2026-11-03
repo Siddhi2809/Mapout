@@ -181,6 +181,8 @@ model Lead {
   expectedValue         Float?   @default(0)
   assignedUser          String?
   status                String   @default("NEW")
+  contactDate           String?
+  contactTime           String?
   nextFollowUpDate      String?
   notes                 String?
   importId              String?

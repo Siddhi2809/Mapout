@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { SALES_NAV } from '@/lib/nav';
@@ -34,6 +34,12 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+export type CodRecord = SalesOrder & {
+  isQuotationOnly?: boolean;
+  quotationStatus?: string;
+  quotationId?: string;
+};
+
 export default function CODOrdersPage() {
   const {
     salesOrders,
@@ -41,6 +47,7 @@ export default function CODOrdersPage() {
     invoices,
     quotations,
     createCustomerPaymentFull,
+    createInvoiceFromQuotation,
     activeRole,
   } = useERP();
 
@@ -48,15 +55,16 @@ export default function CODOrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [collectionFilter, setCollectionFilter] = useState<'ALL' | 'PENDING' | 'COLLECTED'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'ORDERS' | 'QUOTATIONS'>('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [cityFilter, setCityFilter] = useState('ALL');
 
   // Modals
-  const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<CodRecord | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isCollectModalOpen, setIsCollectModalOpen] = useState(false);
-  const [collectTargetOrder, setCollectTargetOrder] = useState<SalesOrder | null>(null);
+  const [collectTargetOrder, setCollectTargetOrder] = useState<CodRecord | null>(null);
 
   // Collection Form State
   const [collectAmount, setCollectAmount] = useState(0);
@@ -69,6 +77,17 @@ export default function CODOrdersPage() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  // Read URL query parameters on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get('search');
+      if (s) setSearchQuery(s);
+      const t = params.get('type');
+      if (t === 'QUOTATIONS' || t === 'ORDERS') setTypeFilter(t);
+    }
+  }, []);
 
   // Helper: Identify if order is COD
   const isCODOrder = (so: SalesOrder) => {
@@ -85,10 +104,77 @@ export default function CODOrdersPage() {
     );
   };
 
-  // ALL COD Orders
-  const allCodOrders = useMemo(() => {
-    return salesOrders.filter(isCODOrder);
-  }, [salesOrders]);
+  // ALL COD Orders & Quotations combined
+  const allCodOrders = useMemo<CodRecord[]>(() => {
+    // 1. Direct SalesOrders with COD
+    const listFromSO: CodRecord[] = salesOrders
+      .filter(isCODOrder)
+      .map((so) => ({ ...so, isQuotationOnly: false }));
+
+    // 2. Quotations with COD (that are not already represented by a sales order)
+    const listFromQuotations: CodRecord[] = [];
+
+    quotations.forEach((q) => {
+      if (q.paymentMode === 'COD') {
+        const alreadyInSO = listFromSO.some(
+          (so) =>
+            so.quotationId === q.id ||
+            (so.quotationNumber && so.quotationNumber === q.quotationNumber) ||
+            (q.salesOrderId && so.id === q.salesOrderId) ||
+            (q.orderNumber && so.orderNumber === q.orderNumber)
+        );
+
+        if (!alreadyInSO) {
+          const mappedItems = (q.items || []).map((item, idx) => ({
+            id: item.id || `q_item_${idx}`,
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            unitPrice: item.rate,
+            sellingPrice: item.rate,
+            discount: item.discount || 0,
+            gstPercent: item.gstPercent || 18,
+            totalPrice: item.totalAmount,
+            warrantyPeriod: item.warrantyPeriod || q.warrantyPeriod || '1 Year',
+          }));
+
+          const quoteOrderObj: CodRecord = {
+            id: `cod_qt_${q.id}`,
+            orderNumber: q.quotationNumber,
+            quotationNumber: q.quotationNumber,
+            quotationId: q.id,
+            customerId: q.customerId,
+            customerName: q.customerName,
+            customerNumber: q.customerNumber,
+            orderDate: q.quotationDate,
+            expectedDelivery: q.validUntil,
+            dueDate: q.validUntil,
+            items: mappedItems,
+            subtotal: q.subtotal,
+            discountAmount: q.discountAmount || 0,
+            taxAmount: q.taxAmount || 0,
+            gstAmount: q.taxAmount || 0,
+            totalAmount: q.totalAmount,
+            grandTotal: q.totalAmount,
+            amountPaid: 0,
+            paymentStatus: 'UNPAID',
+            dispatchStatus: 'Pending',
+            orderStatus: (q.status as any) || 'Draft',
+            paymentMode: 'COD',
+            notes: q.notes || 'Quotation created with COD terms',
+            salesperson: q.salesperson || 'Sales Person',
+            isQuotationOnly: true,
+            quotationStatus: q.status,
+          };
+
+          listFromQuotations.push(quoteOrderObj);
+        }
+      }
+    });
+
+    return [...listFromSO, ...listFromQuotations];
+  }, [salesOrders, quotations]);
 
   // Available Cities for Filter
   const availableCities = useMemo(() => {
@@ -110,6 +196,10 @@ export default function CODOrdersPage() {
       const cCity = (cust?.city || '').toLowerCase();
       const sDetails = (so.shippingDetails || '').toLowerCase();
 
+      // Type Filter (All / Orders / Quotations)
+      if (typeFilter === 'ORDERS' && so.isQuotationOnly) return false;
+      if (typeFilter === 'QUOTATIONS' && !so.isQuotationOnly) return false;
+
       // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -128,7 +218,7 @@ export default function CODOrdersPage() {
 
       // Dispatch/Order Status Filter
       if (statusFilter !== 'ALL') {
-        const matchesOrder = so.orderStatus === statusFilter;
+        const matchesOrder = so.orderStatus === statusFilter || so.quotationStatus === statusFilter;
         const matchesDispatch = so.dispatchStatus === statusFilter;
         if (!matchesOrder && !matchesDispatch) return false;
       }
@@ -151,21 +241,23 @@ export default function CODOrdersPage() {
 
       return true;
     });
-  }, [allCodOrders, searchQuery, statusFilter, collectionFilter, startDate, endDate, cityFilter, customers]);
+  }, [allCodOrders, typeFilter, searchQuery, statusFilter, collectionFilter, startDate, endDate, cityFilter, customers]);
 
   // Statistics KPI
   const stats = useMemo(() => {
     const totalOrders = allCodOrders.length;
+    const totalQuotationsCount = allCodOrders.filter((so) => so.isQuotationOnly).length;
+    const totalSalesOrdersCount = allCodOrders.filter((so) => !so.isQuotationOnly).length;
     const totalValue = allCodOrders.reduce((sum, so) => sum + (so.grandTotal || 0), 0);
     const pendingOrders = allCodOrders.filter(
-      (so) => so.paymentStatus !== 'PAID' && so.amountPaid < so.grandTotal
+      (so) => so.paymentStatus !== 'PAID' && (so.amountPaid || 0) < (so.grandTotal || 0)
     );
     const pendingAmount = pendingOrders.reduce(
       (sum, so) => sum + Math.max(0, (so.grandTotal || 0) - (so.amountPaid || 0)),
       0
     );
     const collectedOrders = allCodOrders.filter(
-      (so) => so.paymentStatus === 'PAID' || so.amountPaid >= so.grandTotal
+      (so) => so.paymentStatus === 'PAID' || (so.amountPaid >= so.grandTotal && so.grandTotal > 0)
     );
     const collectedAmount = collectedOrders.reduce((sum, so) => sum + (so.amountPaid || so.grandTotal || 0), 0);
     const activeDispatches = allCodOrders.filter(
@@ -179,6 +271,8 @@ export default function CODOrdersPage() {
 
     return {
       totalOrders,
+      totalQuotationsCount,
+      totalSalesOrdersCount,
       totalValue,
       pendingOrdersCount: pendingOrders.length,
       pendingAmount,
@@ -303,8 +397,12 @@ export default function CODOrdersPage() {
             <div className="text-2xl font-black text-slate-900 mt-2">
               {stats.totalOrders}
             </div>
-            <div className="text-xs font-semibold text-slate-500 mt-0.5">
-              Total Value: <strong className="text-slate-800">₹{stats.totalValue.toLocaleString('en-IN')}</strong>
+            <div className="text-xs font-semibold text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+              <span>₹{stats.totalValue.toLocaleString('en-IN')}</span>
+              <span>•</span>
+              <span className="text-blue-700 font-bold">{stats.totalSalesOrdersCount} Orders</span>
+              <span>•</span>
+              <span className="text-purple-700 font-bold">{stats.totalQuotationsCount} Quotes</span>
             </div>
           </div>
 
@@ -416,8 +514,46 @@ export default function CODOrdersPage() {
           {/* Secondary Filters row */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs">
             <div className="flex flex-wrap items-center gap-2.5">
+              {/* Type Filter Buttons */}
+              <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    typeFilter === 'ALL'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All COD ({allCodOrders.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('ORDERS')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    typeFilter === 'ORDERS'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Orders ({stats.totalSalesOrdersCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('QUOTATIONS')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                    typeFilter === 'QUOTATIONS'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileCheck className="w-3.5 h-3.5" />
+                  <span>Quotes ({stats.totalQuotationsCount})</span>
+                </button>
+              </div>
+
               {/* Collection Status */}
-              <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
+              <div className="flex items-center gap-1.5 text-slate-600 font-semibold ml-1">
                 <Filter className="w-3.5 h-3.5 text-slate-500" /> COD Collection:
               </div>
               <select
@@ -425,7 +561,7 @@ export default function CODOrdersPage() {
                 onChange={(e) => setCollectionFilter(e.target.value as any)}
                 className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
               >
-                <option value="ALL">All COD Orders ({allCodOrders.length})</option>
+                <option value="ALL">All Collection States ({allCodOrders.length})</option>
                 <option value="PENDING">Pending Collection ({stats.pendingOrdersCount})</option>
                 <option value="COLLECTED">Collected / Paid ({stats.collectedOrdersCount})</option>
               </select>
@@ -449,7 +585,7 @@ export default function CODOrdersPage() {
               </select>
 
               {/* Clear filters */}
-              {(startDate || endDate || cityFilter !== 'ALL' || statusFilter !== 'ALL' || collectionFilter !== 'ALL' || searchQuery) && (
+              {(startDate || endDate || cityFilter !== 'ALL' || statusFilter !== 'ALL' || collectionFilter !== 'ALL' || searchQuery || typeFilter !== 'ALL') && (
                 <button
                   onClick={() => {
                     setStartDate('');
@@ -458,6 +594,7 @@ export default function CODOrdersPage() {
                     setStatusFilter('ALL');
                     setCollectionFilter('ALL');
                     setSearchQuery('');
+                    setTypeFilter('ALL');
                   }}
                   className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer text-xs ml-1"
                   title="Clear all filters"
@@ -468,7 +605,7 @@ export default function CODOrdersPage() {
             </div>
 
             <div className="text-[11px] text-slate-500 font-medium ml-auto">
-              Displaying <strong className="text-slate-800">{filteredCodOrders.length}</strong> of {allCodOrders.length} COD orders
+              Displaying <strong className="text-slate-800">{filteredCodOrders.length}</strong> of {allCodOrders.length} COD items
             </div>
           </div>
         </div>
@@ -530,8 +667,14 @@ export default function CODOrdersPage() {
                       <tr key={so.id} className="hover:bg-slate-50/80 transition">
                         {/* Order & Invoice */}
                         <td className="p-3.5">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-mono text-blue-700 font-bold">{so.orderNumber}</span>
+                            {so.isQuotationOnly ? (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300">
+                                <FileCheck className="w-3 h-3 text-purple-600" />
+                                <span>Quotation</span>
+                              </span>
+                            ) : null}
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
                               <HandCoins className="w-3 h-3 text-amber-600" />
                               <span>COD</span>
@@ -542,10 +685,10 @@ export default function CODOrdersPage() {
                               Inv: {so.invoiceNumber}
                             </div>
                           )}
-                          {so.quotationNumber && (
+                          {!so.isQuotationOnly && so.quotationNumber && (
                             <div className="text-[10px] font-mono text-purple-700 mt-0.5 flex items-center gap-1">
                               <span>QT:</span>
-                              <Link href="/sales/quotations" className="hover:underline">
+                              <Link href={`/sales/quotations?search=${encodeURIComponent(so.quotationNumber)}`} className="hover:underline">
                                 {so.quotationNumber}
                               </Link>
                             </div>
@@ -605,29 +748,35 @@ export default function CODOrdersPage() {
 
                         {/* Delivery Status */}
                         <td className="p-3.5 text-center whitespace-nowrap">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                              so.dispatchStatus === 'DELIVERED' || so.orderStatus === 'Delivered'
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          {so.isQuotationOnly ? (
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold border bg-purple-50 text-purple-800 border-purple-200">
+                              Quote: {so.quotationStatus || so.orderStatus}
+                            </span>
+                          ) : (
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                                so.dispatchStatus === 'DELIVERED' || so.orderStatus === 'Delivered'
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : so.dispatchStatus === 'DISPATCHED' || so.orderStatus === 'Dispatched'
+                                  ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                  : so.orderStatus === 'Ready for Dispatch'
+                                  ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                                  : so.orderStatus === 'Packed'
+                                  ? 'bg-purple-100 text-purple-800 border-purple-300'
+                                  : so.orderStatus === 'Sent to Production' || so.orderStatus === 'Sent to Product'
+                                  ? 'bg-cyan-100 text-cyan-800 border-cyan-300'
+                                  : 'bg-slate-100 text-slate-700 border-slate-300'
+                              }`}
+                            >
+                              {so.dispatchStatus === 'DELIVERED' || so.orderStatus === 'Delivered'
+                                ? 'Delivered'
                                 : so.dispatchStatus === 'DISPATCHED' || so.orderStatus === 'Dispatched'
-                                ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                ? 'Dispatched'
                                 : so.orderStatus === 'Ready for Dispatch'
-                                ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
-                                : so.orderStatus === 'Packed'
-                                ? 'bg-purple-100 text-purple-800 border-purple-300'
-                                : so.orderStatus === 'Sent to Production' || so.orderStatus === 'Sent to Product'
-                                ? 'bg-cyan-100 text-cyan-800 border-cyan-300'
-                                : 'bg-slate-100 text-slate-700 border-slate-300'
-                            }`}
-                          >
-                            {so.dispatchStatus === 'DELIVERED' || so.orderStatus === 'Delivered'
-                              ? 'Delivered'
-                              : so.dispatchStatus === 'DISPATCHED' || so.orderStatus === 'Dispatched'
-                              ? 'Dispatched'
-                              : so.orderStatus === 'Ready for Dispatch'
-                              ? 'Ready for Dispatch'
-                              : so.orderStatus || 'Confirmed'}
-                          </span>
+                                ? 'Ready for Dispatch'
+                                : so.orderStatus || 'Confirmed'}
+                            </span>
+                          )}
                         </td>
 
                         {/* COD Collection Status */}
@@ -648,6 +797,24 @@ export default function CODOrdersPage() {
                         {/* Actions */}
                         <td className="p-3.5 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1.5">
+                            {so.isQuotationOnly && (so.quotationStatus === 'Customer Approved' || so.quotationStatus === 'Approved') && (
+                              <button
+                                onClick={() => {
+                                  const res = createInvoiceFromQuotation(so.quotationId!);
+                                  if (res.success) {
+                                    showToast(`Invoice generated for approved COD Quotation ${so.quotationNumber}!`);
+                                  } else {
+                                    showToast(res.message || 'Failed to generate invoice.');
+                                  }
+                                }}
+                                className="px-2 py-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] transition shadow-xs flex items-center gap-1 cursor-pointer"
+                                title="Generate Invoice from Approved COD Quotation"
+                              >
+                                <FileText className="w-3 h-3" />
+                                <span>Gen Invoice</span>
+                              </button>
+                            )}
+
                             {!isPaid && (
                               <button
                                 onClick={() => handleOpenCollectModal(so)}
@@ -661,7 +828,7 @@ export default function CODOrdersPage() {
 
                             {cust?.mobile && (
                               <a
-                                href={`https://wa.me/91${cust.mobile.replace(/\D/g, '')}?text=Hello%20${encodeURIComponent(so.customerName)},%20confirming%20your%20COD%20order%20${so.orderNumber}%20of%20Rs.${so.grandTotal}.%20Kindly%20keep%20exact%20cash%20ready%20upon%20delivery.`}
+                                href={`https://wa.me/91${cust.mobile.replace(/\D/g, '')}?text=Hello%20${encodeURIComponent(so.customerName)},%20confirming%20your%20COD%20${so.isQuotationOnly ? 'quotation' : 'order'}%20${so.orderNumber}%20of%20Rs.${so.grandTotal}.%20Kindly%20keep%20exact%20cash%20ready%20upon%20delivery.`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
@@ -671,16 +838,26 @@ export default function CODOrdersPage() {
                               </a>
                             )}
 
-                            <button
-                              onClick={() => {
-                                setSelectedOrder(so);
-                                setIsViewModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-                              title="View Order Details"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
+                            {so.isQuotationOnly ? (
+                              <Link
+                                href={`/sales/quotations?search=${encodeURIComponent(so.quotationNumber || '')}`}
+                                className="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition"
+                                title="View Quotation in Quotations module"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </Link>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setSelectedOrder(so);
+                                  setIsViewModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                                title="View Order Details"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -823,7 +1000,8 @@ export default function CODOrdersPage() {
                   <ShoppingCart className="w-5 h-5 text-blue-600" />
                   <div>
                     <h3 className="font-bold text-slate-900 text-sm">
-                      COD Order: <span className="font-mono text-blue-700">{selectedOrder.orderNumber}</span>
+                      {selectedOrder.isQuotationOnly ? 'COD Quotation:' : 'COD Order:'}{' '}
+                      <span className="font-mono text-blue-700">{selectedOrder.orderNumber}</span>
                     </h3>
                     <p className="text-[11px] text-slate-500">
                       Customer: {selectedOrder.customerName}

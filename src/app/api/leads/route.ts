@@ -73,6 +73,8 @@ export async function POST(request: Request) {
           expectedValue: parseFloat(body.expectedValue || 0),
           assignedUser: body.assignedUser || body.salesperson || 'Sales Team',
           status: body.status || 'New',
+          contactDate: body.contactDate || null,
+          contactTime: body.contactTime || null,
           nextFollowUpDate: body.nextFollowUpDate || null,
           notes: body.notes || null,
           importId: body.importId || null,
@@ -87,10 +89,10 @@ export async function POST(request: Request) {
           "id", "leadNumber", "leadName", "companyName", "contactPerson", "mobile", "alternateMobile",
           "email", "address", "city", "state", "pincode", "gstin", "industry", "source", "salesperson",
           "website", "requirement", "interestedProductId", "interestedProductName", "expectedValue",
-          "assignedUser", "status", "nextFollowUpDate", "notes", "importId", "convertedCustomerId",
+          "assignedUser", "status", "contactDate", "contactTime", "nextFollowUpDate", "notes", "importId", "convertedCustomerId",
           "createdAt", "updatedAt"
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, NOW(), NOW()
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, NOW(), NOW()
         ) ON CONFLICT ("leadNumber") DO UPDATE SET "updatedAt" = NOW()`,
         id,
         leadNumber,
@@ -115,6 +117,8 @@ export async function POST(request: Request) {
         parseFloat(body.expectedValue || 0),
         body.assignedUser || body.salesperson || 'Sales Team',
         body.status || 'New',
+        body.contactDate || null,
+        body.contactTime || null,
         body.nextFollowUpDate || null,
         body.notes || null,
         body.importId || null,
@@ -147,7 +151,7 @@ export async function PUT(request: Request) {
       'leadName', 'companyName', 'contactPerson', 'mobile', 'alternateMobile',
       'email', 'address', 'city', 'state', 'pincode', 'gstin', 'industry',
       'source', 'salesperson', 'website', 'requirement', 'interestedProductId',
-      'interestedProductName', 'assignedUser', 'status', 'nextFollowUpDate',
+      'interestedProductName', 'assignedUser', 'status', 'contactDate', 'contactTime', 'nextFollowUpDate',
       'notes', 'importId', 'convertedCustomerId'
     ];
 
