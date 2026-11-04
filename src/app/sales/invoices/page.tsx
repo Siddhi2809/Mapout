@@ -119,6 +119,7 @@ export default function InvoicesPage() {
 
   // Modal State
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [activeViewTab, setActiveViewTab] = useState<'invoice' | 'proof' | 'production' | 'all'>('invoice');
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isUploadProofModalOpen, setIsUploadProofModalOpen] = useState(false);
@@ -229,11 +230,8 @@ export default function InvoicesPage() {
 
   const handleOpenViewModal = (inv: SalesInvoice) => {
     setSelectedInvoice(inv);
-    setIsViewModalOpen(false); // reset
-    setTimeout(() => {
-      setSelectedInvoice(inv);
-      setIsViewModalOpen(true);
-    }, 10);
+    setActiveViewTab('invoice');
+    setIsViewModalOpen(true);
   };
 
   const handleOpenGenerateModal = () => {
@@ -738,20 +736,20 @@ export default function InvoicesPage() {
 
         {/* Invoices Table */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="w-full overflow-hidden">
+            <table className="table-fixed w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold text-[11px]">
-                  <th className="py-3 px-3.5">Invoice #</th>
-                  <th className="py-3 px-2.5">Date</th>
-                  <th className="py-3 px-3.5">Customer</th>
-                  <th className="py-3 px-2.5">Quotation Ref</th>
-                  <th className="py-3 px-3 text-right">Grand Total</th>
-                  <th className="py-3 px-3 text-right text-emerald-700">Paid</th>
-                  <th className="py-3 px-3 text-right text-rose-700">Pending</th>
-                  <th className="py-3 px-2 text-center">Payment Status</th>
-                  <th className="py-3 px-2 text-center">Production Status</th>
-                  <th className="py-3 px-3 text-center">Workflow Actions</th>
+                  <th className="py-3 px-3 w-[11%]">Invoice #</th>
+                  <th className="py-3 px-2 w-[8%]">Date</th>
+                  <th className="py-3 px-3 w-[17%]">Customer</th>
+                  <th className="py-3 px-2 w-[9%]">Quotation Ref</th>
+                  <th className="py-3 px-2.5 text-right w-[9%]">Grand Total</th>
+                  <th className="py-3 px-2.5 text-right text-emerald-700 w-[8%]">Paid</th>
+                  <th className="py-3 px-2.5 text-right text-rose-700 w-[8%]">Pending</th>
+                  <th className="py-3 px-2 text-center w-[10%]">Payment Status</th>
+                  <th className="py-3 px-2 text-center w-[9%]">Production</th>
+                  <th className="py-3 px-2.5 text-center w-[11%]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -787,94 +785,94 @@ export default function InvoicesPage() {
 
                   return (
                     <tr key={inv.id} className="hover:bg-slate-50/70 transition">
-                      <td className="py-3 px-3.5 align-middle">
-                        <div className="font-mono text-blue-700 font-extrabold text-[12px]">{inv.invoiceNumber}</div>
+                      <td className="py-2.5 px-3 align-middle truncate">
+                        <div className="font-mono text-blue-700 font-extrabold text-[11px] truncate">{inv.invoiceNumber}</div>
                       </td>
-                      <td className="py-3 px-2.5 text-slate-700 font-medium text-xs whitespace-nowrap align-middle">
+                      <td className="py-2.5 px-2 text-slate-600 font-medium text-[11px] whitespace-nowrap align-middle truncate">
                         {inv.invoiceDate}
                       </td>
-                      <td className="py-3 px-3.5 max-w-[200px] align-middle">
-                        <div className="font-bold text-slate-900 truncate" title={inv.customerName}>{inv.customerName}</div>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200 font-semibold">
+                      <td className="py-2.5 px-3 align-middle truncate min-w-0">
+                        <div className="font-bold text-slate-900 text-xs truncate" title={inv.customerName}>{inv.customerName}</div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="font-mono text-[9px] text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200 font-semibold truncate">
                             {inv.customerNumber || 'CUS-101'}
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 px-2.5 font-mono text-slate-700 font-semibold text-xs whitespace-nowrap align-middle">
+                      <td className="py-2.5 px-2 font-mono text-slate-600 font-semibold text-[11px] truncate align-middle">
                         {inv.quotationNumber || inv.salesOrderNumber || '—'}
                       </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-900 font-mono text-xs whitespace-nowrap align-middle">
+                      <td className="py-2.5 px-2.5 text-right font-black text-slate-900 font-mono text-xs whitespace-nowrap align-middle">
                         ₹{inv.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 1 })}
                       </td>
-                      <td className="py-3 px-3 text-right font-bold text-emerald-700 font-mono text-xs whitespace-nowrap align-middle">
+                      <td className="py-2.5 px-2.5 text-right font-bold text-emerald-700 font-mono text-xs whitespace-nowrap align-middle">
                         ₹{(hasProofOrPaid ? inv.grandTotal : inv.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 1 })}
                       </td>
-                      <td className={`py-3 px-3 text-right font-bold font-mono text-xs whitespace-nowrap align-middle ${(hasProofOrPaid ? 0 : inv.outstandingAmount) > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                      <td className={`py-2.5 px-2.5 text-right font-bold font-mono text-xs whitespace-nowrap align-middle ${(hasProofOrPaid ? 0 : inv.outstandingAmount) > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                         ₹{(hasProofOrPaid ? 0 : inv.outstandingAmount).toLocaleString('en-IN', { minimumFractionDigits: 1 })}
                       </td>
-                      <td className="py-3 px-2 text-center align-middle">
+                      <td className="py-2.5 px-2 text-center align-middle">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] whitespace-nowrap border ${getPaymentBadge(
+                            className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap border ${getPaymentBadge(
                               hasProofOrPaid ? 'Paid' : (inv.paymentStatus || 'Payment Pending')
                             )}`}
                           >
-                            {hasProofOrPaid ? 'Paid' : (inv.paymentStatus || 'Payment Pending')}
+                            {hasProofOrPaid ? 'Paid' : (inv.paymentStatus || 'Pending')}
                           </span>
                           {inv.paymentProofFiles && inv.paymentProofFiles.length > 0 && (
-                            <div className="flex items-center justify-center gap-1 text-[9px] text-emerald-700 font-bold whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1 text-[8.5px] text-emerald-700 font-bold whitespace-nowrap">
                               <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
                               <span>Proof Attached</span>
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-2 text-center align-middle">
+                      <td className="py-2.5 px-2 text-center align-middle">
                         <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap border ${getProductionBadge(
+                          className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap border ${getProductionBadge(
                             prodStatus
                           )}`}
                         >
                           {prodStatus}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-center align-middle">
+                      <td className="py-2.5 px-2.5 text-center align-middle">
                         <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                           {/* SEND INVOICE TO PRODUCTION: Rendered when Payment Proof is Uploaded, Verified, or Completed */}
                           {hasProofOrPaid ? (
                             !isSentToProd ? (
                               <button
                                 onClick={() => handleSendToProduction(inv)}
-                                className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition"
+                                className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition shrink-0"
                                 title="Payment proof uploaded! Click to send Invoice to Production"
                               >
                                 <Factory className="w-3 h-3 shrink-0" />
-                                <span>Send to Production</span>
+                                <span>To Prod</span>
                               </button>
                             ) : (
                               <span
-                                className="px-2 py-0.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-bold inline-flex items-center gap-1"
+                                className="px-1.5 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-bold inline-flex items-center gap-1 shrink-0"
                                 title="Transferred to Production Team"
                               >
-                                <Check className="w-3 h-3 text-blue-600 shrink-0" />
-                                <span>In Production</span>
+                                <Check className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                                <span>In Prod</span>
                               </span>
                             )
                           ) : (
                             <button
                               onClick={() => handleOpenUploadProofModal(inv)}
-                              className="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition"
+                              className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[10px] shadow-2xs inline-flex items-center gap-1 cursor-pointer transition shrink-0"
                               title="Upload Customer Payment Proof / Screenshot"
                             >
                               <UploadCloud className="w-3 h-3 shrink-0" />
-                              <span>Upload Payment Proof</span>
+                              <span>Proof</span>
                             </button>
                           )}
 
                           <button
                             onClick={() => handleOpenViewModal(inv)}
-                            className="px-2 py-1 rounded-xl bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 font-bold text-[10px] inline-flex items-center gap-1 transition cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 font-bold text-[10px] inline-flex items-center gap-1 transition cursor-pointer shrink-0"
                             title="View full tax invoice and payment proof details"
                           >
                             <Eye className="w-3 h-3 shrink-0" />
@@ -1157,220 +1155,290 @@ export default function InvoicesPage() {
           const bNum = selectedInvoice.batchNumber || linkedOrder?.batchNumber;
           const wPeriod = selectedInvoice.warrantyPeriod || linkedOrder?.warrantyPeriod || '1 Year';
 
+          const cust = customers.find(
+            (c) =>
+              c.id === selectedInvoice.customerId ||
+              c.name === selectedInvoice.customerName ||
+              c.companyName === selectedInvoice.customerName
+          );
+          const linkedQuote = quotations.find(
+            (q) =>
+              q.id === selectedInvoice.quotationId ||
+              q.quotationNumber === selectedInvoice.quotationNumber
+          );
+
+          // Consignee and Buyer Details
+          const companyTitle = 'SUNYASH MULTI TRADING PVT LTD 26-27';
+          const consigneeName =
+            cust?.companyName ||
+            cust?.name ||
+            selectedInvoice.customerName ||
+            'Pathankot Vehicleades pvt. Ltd- Gurdaspur';
+          const consigneeAddress =
+            cust?.shippingAddress ||
+            cust?.address ||
+            selectedInvoice.billingAddress ||
+            'Batala Road , Jeevanwal babri gurdaspur,';
+          const consigneeCity = cust?.city || 'Gurdaspur';
+          const consigneePincode = cust?.pincode || '143521';
+          const consigneeState = cust?.state || 'Punjab';
+          const consigneeGstin =
+            selectedInvoice.gstNumber ||
+            cust?.gstin ||
+            cust?.gstNumber ||
+            '03AAACP9610Q1Z6';
+
+          let consigneeStateCode = '03';
+          if (consigneeGstin && consigneeGstin.length >= 2 && !isNaN(Number(consigneeGstin.slice(0, 2)))) {
+            consigneeStateCode = consigneeGstin.slice(0, 2);
+          } else if (consigneeState) {
+            consigneeStateCode = INDIAN_STATE_CODES[consigneeState.toUpperCase().trim()] || '03';
+          }
+
+          const buyerName = consigneeName;
+          const buyerAddress = consigneeAddress;
+          const buyerCity = consigneeCity;
+          const buyerPincode = consigneePincode;
+          const buyerState = consigneeState;
+          const buyerGstin = consigneeGstin;
+          const buyerStateCode = consigneeStateCode;
+          const placeOfSupply = buyerState;
+
+          // SUNYASH is in Maharashtra (Code 27). If buyer is outside Maharashtra => IGST 18%
+          const isInterstate = consigneeStateCode !== '27';
+
+          // Items breakdown
+          const rawItems =
+            selectedInvoice.items && Array.isArray(selectedInvoice.items) && selectedInvoice.items.length > 0
+              ? selectedInvoice.items
+              : linkedOrder?.items && linkedOrder.items.length > 0
+              ? linkedOrder.items.map((i) => ({
+                  productName: i.productName,
+                  sku: i.sku || 'SKU-01',
+                  quantity: i.quantity,
+                  rate: i.sellingPrice || i.unitPrice || 0,
+                  subtotal: i.totalPrice,
+                  hsn: '85369090',
+                }))
+              : [
+                  {
+                    productName: 'BOSCH OBD-II Male to DB 26 Female Cable(Universal Cable)',
+                    sku: 'BOSCH-CBL-01',
+                    quantity: 6,
+                    rate: 2459.18,
+                    subtotal: 14755.08,
+                    hsn: '85369090',
+                  },
+                ];
+
+          const invoiceItems = rawItems.map((item) => {
+            const qty = Number(item.quantity) || 1;
+            const rate = Number(item.rate) || 0;
+            const sub = Number(item.subtotal || (item as any).total || qty * rate);
+            return {
+              ...item,
+              quantity: qty,
+              rate,
+              subtotal: sub,
+              hsn: (item as any).hsn || '85369090',
+            };
+          });
+
+          const totalQty = invoiceItems.reduce((acc, it) => acc + it.quantity, 0);
+          const goodsTaxable = invoiceItems.reduce((acc, it) => acc + it.subtotal, 0);
+
+          // Freight charges
+          const freightAmount = Number(
+            (selectedInvoice as any).freightCharges ??
+            linkedQuote?.freightCharges ??
+            (selectedInvoice.subtotal > goodsTaxable ? selectedInvoice.subtotal - goodsTaxable : 0)
+          );
+
+          const totalTaxable = goodsTaxable + freightAmount;
+
+          // Tax amounts
+          const goodsIgst = isInterstate ? Math.round(goodsTaxable * 0.18 * 100) / 100 : 0;
+          const goodsCgst = !isInterstate ? Math.round(goodsTaxable * 0.09 * 100) / 100 : 0;
+          const goodsSgst = !isInterstate ? Math.round(goodsTaxable * 0.09 * 100) / 100 : 0;
+          const goodsTotalTax = isInterstate ? goodsIgst : goodsCgst + goodsSgst;
+
+          const freightIgst = freightAmount > 0 && isInterstate ? Math.round(freightAmount * 0.18 * 100) / 100 : 0;
+          const freightCgst = freightAmount > 0 && !isInterstate ? Math.round(freightAmount * 0.09 * 100) / 100 : 0;
+          const freightSgst = freightAmount > 0 && !isInterstate ? Math.round(freightAmount * 0.09 * 100) / 100 : 0;
+          const freightTotalTax = isInterstate ? freightIgst : freightCgst + freightSgst;
+
+          const totalIgst = goodsIgst + freightIgst;
+          const totalCgst = goodsCgst + freightCgst;
+          const totalSgst = goodsSgst + freightSgst;
+          const totalTax = isInterstate ? totalIgst : totalCgst + totalSgst;
+
+          const rawGrandTotal = totalTaxable + totalTax;
+          const grandTotal = Number(selectedInvoice.grandTotal) || Math.round(rawGrandTotal);
+          const roundingOff = Math.round((grandTotal - rawGrandTotal) * 100) / 100;
+
+          const invoiceNumber = selectedInvoice.invoiceNumber || 'SUN/26-27/83';
+          const invoiceDateFormatted = formatInvoiceDate(selectedInvoice.invoiceDate);
+          const paymentTerms =
+            (selectedInvoice as any).paymentTerms || cust?.paymentTerms || '100 % Advance';
+          const quotationNumber = selectedInvoice.quotationNumber || '';
+          const buyersOrderNo = selectedInvoice.salesOrderNumber || '';
+          const destination = `${consigneeCity} ${consigneeState}`;
+
+          const remarksStr =
+            sNum || bNum
+              ? `Sr.No. ${sNum || ''}${bNum ? ` / Batch: ${bNum}` : ''}`
+              : selectedInvoice.notes || 'Sr.No.375/360/373/381/367/385';
+
           return (
             <div
-              className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+              className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden"
               onClick={(e) => {
                 if (e.target === e.currentTarget) setIsViewModalOpen(false);
               }}
             >
-              <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-4xl p-8 space-y-6 my-8 text-slate-900 animate-in fade-in zoom-in-95 duration-150">
-                {/* Actions Header */}
-                <div className="flex flex-wrap items-center justify-between border-b border-slate-200 pb-4 gap-3 print:hidden">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 font-mono font-bold tracking-wider uppercase">
-                      TAX INVOICE PREVIEW
-                    </span>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getPaymentBadge(hasProofOrPaid ? 'Paid' : selectedInvoice.paymentStatus)}`}>
-                      {hasProofOrPaid ? 'Paid' : (selectedInvoice.paymentStatus || 'Payment Pending')}
-                    </span>
-                    {selectedInvoice.invoiceStatus && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-700 font-medium">
-                        {hasProofOrPaid ? 'Payment Completed' : selectedInvoice.invoiceStatus}
-                      </span>
-                    )}
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-5xl h-[94vh] flex flex-col text-slate-900 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                {/* Actions & Header Bar (Sticky) */}
+                <div className="px-5 py-3 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 font-bold shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-extrabold text-blue-700">
+                          {invoiceNumber}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${getPaymentBadge(hasProofOrPaid ? 'Paid' : selectedInvoice.paymentStatus)}`}>
+                          {hasProofOrPaid ? 'Paid' : (selectedInvoice.paymentStatus || 'Payment Pending')}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${getProductionBadge(prodStatus)}`}>
+                          {prodStatus}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Customer: <strong className="text-slate-800">{buyerName}</strong> • Date: {invoiceDateFormatted}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* Send to Customer Button */}
                     <button
+                      type="button"
                       onClick={() => handleSendToCustomer(selectedInvoice)}
-                      className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>Send to Customer</span>
+                      <span className="hidden sm:inline">Send to Customer</span>
                     </button>
 
-                    {/* Upload Payment Proof Button - REMOVED after proof is uploaded or paid */}
                     {!hasProofOrPaid && (
                       <button
+                        type="button"
                         onClick={() => handleOpenUploadProofModal(selectedInvoice)}
-                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                       >
                         <UploadCloud className="w-3.5 h-3.5" />
-                        <span>Upload Payment Proof</span>
+                        <span>Upload Proof</span>
                       </button>
                     )}
 
-                    {/* SEND INVOICE TO PRODUCTION: Rendered when Payment Proof is Uploaded, Verified, or Completed */}
                     {hasProofOrPaid && !isSentToProd && (
                       <button
+                        type="button"
                         onClick={() => handleSendToProduction(selectedInvoice)}
-                        className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition cursor-pointer hover:scale-105 active:scale-95 animate-pulse"
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                       >
-                        <Factory className="w-4 h-4" />
-                        <span>Send Invoice to Production</span>
+                        <Factory className="w-3.5 h-3.5" />
+                        <span>Send to Production</span>
                       </button>
                     )}
 
                     <button
+                      type="button"
                       onClick={handlePrint}
-                      className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                     >
-                      <Printer className="w-4 h-4" /> Print / PDF
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Print / PDF</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setIsViewModalOpen(false)}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                      title="Close Invoice"
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer ml-1"
+                      title="Close"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
 
-                {/* EXACT TAX INVOICE PAPER DOCUMENT CONTAINER (Matches Sunyash Multi Trading PDF) */}
-                {(() => {
-                  const cust = customers.find(
-                    (c) =>
-                      c.id === selectedInvoice.customerId ||
-                      c.name === selectedInvoice.customerName ||
-                      c.companyName === selectedInvoice.customerName
-                  );
-                  const linkedQuote = quotations.find(
-                    (q) =>
-                      q.id === selectedInvoice.quotationId ||
-                      q.quotationNumber === selectedInvoice.quotationNumber
-                  );
+                {/* View Mode Navigation Tabs (Sticky) */}
+                <div className="px-5 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2 shrink-0 print:hidden">
+                  <div className="flex items-center gap-1.5 overflow-x-auto">
+                    <button
+                      type="button"
+                      onClick={() => setActiveViewTab('invoice')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        activeViewTab === 'invoice'
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Tax Invoice (GST)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveViewTab('proof')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        activeViewTab === 'proof'
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Payment Proof ({selectedInvoice.paymentProofFiles?.length || 0})</span>
+                    </button>
+                    {isSentToProd && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveViewTab('production')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                          activeViewTab === 'production'
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                      >
+                        <Factory className="w-3.5 h-3.5" />
+                        <span>Production & Packing</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveViewTab('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        activeViewTab === 'all'
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Full View</span>
+                    </button>
+                  </div>
 
-                  // Consignee and Buyer Details
-                  const companyTitle = 'SUNYASH MULTI TRADING PVT LTD 26-27';
-                  const consigneeName =
-                    cust?.companyName ||
-                    cust?.name ||
-                    selectedInvoice.customerName ||
-                    'Pathankot Vehicleades pvt. Ltd- Gurdaspur';
-                  const consigneeAddress =
-                    cust?.shippingAddress ||
-                    cust?.address ||
-                    selectedInvoice.billingAddress ||
-                    'Batala Road , Jeevanwal babri gurdaspur,';
-                  const consigneeCity = cust?.city || 'Gurdaspur';
-                  const consigneePincode = cust?.pincode || '143521';
-                  const consigneeState = cust?.state || 'Punjab';
-                  const consigneeGstin =
-                    selectedInvoice.gstNumber ||
-                    cust?.gstin ||
-                    cust?.gstNumber ||
-                    '03AAACP9610Q1Z6';
+                  <div className="text-[11px] text-slate-500 font-mono hidden md:block">
+                    Grand Total: <strong className="text-slate-900 font-bold">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                  </div>
+                </div>
 
-                  let consigneeStateCode = '03';
-                  if (consigneeGstin && consigneeGstin.length >= 2 && !isNaN(Number(consigneeGstin.slice(0, 2)))) {
-                    consigneeStateCode = consigneeGstin.slice(0, 2);
-                  } else if (consigneeState) {
-                    consigneeStateCode = INDIAN_STATE_CODES[consigneeState.toUpperCase().trim()] || '03';
-                  }
-
-                  const buyerName = consigneeName;
-                  const buyerAddress = consigneeAddress;
-                  const buyerCity = consigneeCity;
-                  const buyerPincode = consigneePincode;
-                  const buyerState = consigneeState;
-                  const buyerGstin = consigneeGstin;
-                  const buyerStateCode = consigneeStateCode;
-                  const placeOfSupply = buyerState;
-
-                  // SUNYASH is in Maharashtra (Code 27). If buyer is outside Maharashtra => IGST 18%
-                  const isInterstate = consigneeStateCode !== '27';
-
-                  // Items breakdown
-                  const rawItems =
-                    selectedInvoice.items && Array.isArray(selectedInvoice.items) && selectedInvoice.items.length > 0
-                      ? selectedInvoice.items
-                      : linkedOrder?.items && linkedOrder.items.length > 0
-                      ? linkedOrder.items.map((i) => ({
-                          productName: i.productName,
-                          sku: i.sku || 'SKU-01',
-                          quantity: i.quantity,
-                          rate: i.sellingPrice || i.unitPrice || 0,
-                          subtotal: i.totalPrice,
-                          hsn: '85369090',
-                        }))
-                      : [
-                          {
-                            productName: 'BOSCH OBD-II Male to DB 26 Female Cable(Universal Cable)',
-                            sku: 'BOSCH-CBL-01',
-                            quantity: 6,
-                            rate: 2459.18,
-                            subtotal: 14755.08,
-                            hsn: '85369090',
-                          },
-                        ];
-
-                  const invoiceItems = rawItems.map((item) => {
-                    const qty = Number(item.quantity) || 1;
-                    const rate = Number(item.rate) || 0;
-                    const sub = Number(item.subtotal || (item as any).total || qty * rate);
-                    return {
-                      ...item,
-                      quantity: qty,
-                      rate,
-                      subtotal: sub,
-                      hsn: (item as any).hsn || '85369090',
-                    };
-                  });
-
-                  const totalQty = invoiceItems.reduce((acc, it) => acc + it.quantity, 0);
-                  const goodsTaxable = invoiceItems.reduce((acc, it) => acc + it.subtotal, 0);
-
-                  // Freight charges
-                  const freightAmount = Number(
-                    (selectedInvoice as any).freightCharges ??
-                    linkedQuote?.freightCharges ??
-                    (selectedInvoice.subtotal > goodsTaxable ? selectedInvoice.subtotal - goodsTaxable : 0)
-                  );
-
-                  const totalTaxable = goodsTaxable + freightAmount;
-
-                  // Tax amounts
-                  const goodsIgst = isInterstate ? Math.round(goodsTaxable * 0.18 * 100) / 100 : 0;
-                  const goodsCgst = !isInterstate ? Math.round(goodsTaxable * 0.09 * 100) / 100 : 0;
-                  const goodsSgst = !isInterstate ? Math.round(goodsTaxable * 0.09 * 100) / 100 : 0;
-                  const goodsTotalTax = isInterstate ? goodsIgst : goodsCgst + goodsSgst;
-
-                  const freightIgst = freightAmount > 0 && isInterstate ? Math.round(freightAmount * 0.18 * 100) / 100 : 0;
-                  const freightCgst = freightAmount > 0 && !isInterstate ? Math.round(freightAmount * 0.09 * 100) / 100 : 0;
-                  const freightSgst = freightAmount > 0 && !isInterstate ? Math.round(freightAmount * 0.09 * 100) / 100 : 0;
-                  const freightTotalTax = isInterstate ? freightIgst : freightCgst + freightSgst;
-
-                  const totalIgst = goodsIgst + freightIgst;
-                  const totalCgst = goodsCgst + freightCgst;
-                  const totalSgst = goodsSgst + freightSgst;
-                  const totalTax = isInterstate ? totalIgst : totalCgst + totalSgst;
-
-                  const rawGrandTotal = totalTaxable + totalTax;
-                  const grandTotal = Number(selectedInvoice.grandTotal) || Math.round(rawGrandTotal);
-                  const roundingOff = Math.round((grandTotal - rawGrandTotal) * 100) / 100;
-
-                  const invoiceNumber = selectedInvoice.invoiceNumber || 'SUN/26-27/83';
-                  const invoiceDateFormatted = formatInvoiceDate(selectedInvoice.invoiceDate);
-                  const paymentTerms =
-                    (selectedInvoice as any).paymentTerms || cust?.paymentTerms || '100 % Advance';
-                  const quotationNumber = selectedInvoice.quotationNumber || '';
-                  const buyersOrderNo = selectedInvoice.salesOrderNumber || '';
-                  const destination = `${consigneeCity} ${consigneeState}`;
-
-                  const remarksStr =
-                    sNum || bNum
-                      ? `Sr.No. ${sNum || ''}${bNum ? ` / Batch: ${bNum}` : ''}`
-                      : selectedInvoice.notes || 'Sr.No.375/360/373/381/367/385';
-
-                  return (
-                    <div className="space-y-6">
+                {/* Scrollable View Area */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70 space-y-6 print:p-0 print:bg-white print:overflow-visible">
+                  {(activeViewTab === 'invoice' || activeViewTab === 'all') && (
+                    <div className="space-y-4">
                       {/* PRINTABLE PAPER DOCUMENT */}
-                      <div className="bg-white text-black font-sans border-2 border-black max-w-[850px] mx-auto text-[11px] leading-tight shadow-md print:shadow-none print:border-black print:max-w-none">
+                      <div className="bg-white text-black font-sans border-2 border-black max-w-[820px] w-full mx-auto text-[11px] leading-tight shadow-md print:shadow-none print:border-black print:max-w-none print:m-0">
                         {/* TITLE: Tax Invoice */}
                         <div className="text-center font-bold text-sm py-1.5 border-b border-black tracking-wide">
                           Tax Invoice
@@ -1844,245 +1912,247 @@ export default function InvoicesPage() {
                       <div className="text-center text-[10px] italic text-slate-600 font-medium print:text-black">
                         This is a Computer Generated Invoice
                       </div>
+                    </div>
+                  )}
 
-                      {/* PAYMENT PROOF & VERIFICATION DETAILS SECTION (Screen Only) */}
-                      <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-5 space-y-4 print:hidden">
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
-                          <div className="flex items-center gap-2">
-                            <Receipt className="w-4 h-4 text-blue-600" />
-                            <h4 className="font-bold text-xs text-slate-900">
-                              Customer Payment Proof & Verification Workflow
-                            </h4>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getPaymentBadge(hasProofOrPaid ? 'Paid' : selectedInvoice.paymentStatus)}`}>
-                              {hasProofOrPaid ? 'Paid' : (selectedInvoice.paymentStatus || 'Payment Pending')}
-                            </span>
-                            {!hasProofOrPaid ? (
-                              <button
-                                onClick={() => handleOpenUploadProofModal(selectedInvoice)}
-                                className="px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                              >
-                                <UploadCloud className="w-3.5 h-3.5" />
-                                <span>Upload Payment Proof</span>
-                              </button>
-                            ) : (
-                              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Proof Attached & Paid</span>
-                              </span>
-                            )}
-                          </div>
+                  {/* PAYMENT PROOF & VERIFICATION DETAILS SECTION (Screen Only) */}
+                  {(activeViewTab === 'proof' || activeViewTab === 'all') && (
+                    <div className="max-w-[820px] w-full mx-auto bg-slate-50/90 border border-slate-200 rounded-2xl p-5 space-y-4 print:hidden">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Receipt className="w-4 h-4 text-blue-600" />
+                          <h4 className="font-bold text-xs text-slate-900">
+                            Customer Payment Proof & Verification Workflow
+                          </h4>
                         </div>
-
-                        {/* Rejection Alert if rejected */}
-                        {selectedInvoice.paymentStatus === 'Payment Rejected' && (
-                          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5 font-medium">
-                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                            <div>
-                              <span className="font-bold block">Payment Proof Rejected by Admin/Authorized User</span>
-                              <span>Reason: {selectedInvoice.paymentRejectionReason || 'Proof document does not match payment records.'}</span>
-                              <span className="block mt-1 text-[11px] text-rose-700">Please contact customer, obtain valid payment receipt/screenshot, and click &quot;Upload / Replace Proof&quot; above.</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Verification Notes */}
-                        {selectedInvoice.paymentVerificationNotes && (
-                          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 font-medium">
-                            <span className="font-bold">Verification Notes: </span>
-                            <span>{selectedInvoice.paymentVerificationNotes}</span>
-                          </div>
-                        )}
-
-                        {/* Uploader Meta */}
-                        {(selectedInvoice.paymentProofUploadedBy || selectedInvoice.paymentProofUploadedDate) && (
-                          <div className="text-[11px] text-slate-500 flex items-center gap-4 flex-wrap">
-                            {selectedInvoice.paymentProofUploadedBy && (
-                              <span>Uploaded By: <strong className="text-slate-800">{selectedInvoice.paymentProofUploadedBy}</strong></span>
-                            )}
-                            {selectedInvoice.paymentProofUploadedDate && (
-                              <span>Uploaded Date: <strong className="text-slate-800">{new Date(selectedInvoice.paymentProofUploadedDate).toLocaleString()}</strong></span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Gallery of Uploaded Proofs */}
-                        <div>
-                          <div className="text-[11px] font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-                            <Paperclip className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Attached Payment Proof Documents ({selectedInvoice.paymentProofFiles?.length || 0})</span>
-                          </div>
-
-                          {selectedInvoice.paymentProofFiles && selectedInvoice.paymentProofFiles.length > 0 ? (
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                              {selectedInvoice.paymentProofFiles.map((item, idx) => {
-                                const parsed = parseProofFile(item);
-                                const isPdf = parsed.type === 'application/pdf' || parsed.url.includes('application/pdf') || parsed.name.toLowerCase().endsWith('.pdf');
-
-                                return (
-                                  <div
-                                    key={idx}
-                                    className="group relative rounded-xl border border-slate-200 bg-white p-2.5 flex flex-col justify-between hover:shadow-md transition"
-                                  >
-                                    {isPdf ? (
-                                      <div className="h-28 flex flex-col items-center justify-center bg-rose-50/50 rounded-lg border border-rose-100 p-2 text-center">
-                                        <FileText className="w-8 h-8 text-rose-600 mb-1" />
-                                        <span className="text-[10px] font-bold text-slate-800 truncate max-w-full" title={parsed.name}>
-                                          {parsed.name}
-                                        </span>
-                                        <span className="text-[9px] text-rose-600 font-semibold uppercase">PDF Document</span>
-                                      </div>
-                                    ) : (
-                                      <div
-                                        onClick={() => setPreviewImageUrl(parsed.url)}
-                                        className="h-28 rounded-lg overflow-hidden bg-slate-100 relative cursor-pointer"
-                                      >
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={parsed.url} alt={parsed.name} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
-                                          View Image
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    <div className="mt-2 flex items-center justify-between gap-1 pt-1 border-t border-slate-100">
-                                      <span className="text-[10px] font-medium text-slate-600 truncate max-w-[100px]" title={parsed.name}>
-                                        {parsed.name}
-                                      </span>
-                                      <div className="flex items-center gap-1">
-                                        {isPdf ? (
-                                          <a
-                                            href={parsed.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                                            title="Open PDF in new tab"
-                                          >
-                                            <ExternalLink className="w-3.5 h-3.5" />
-                                          </a>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => setPreviewImageUrl(parsed.url)}
-                                            className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
-                                            title="View Proof"
-                                          >
-                                            <Eye className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                        <a
-                                          href={parsed.url}
-                                          download={parsed.name || `Payment_Proof_${idx + 1}`}
-                                          className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700"
-                                          title="Download Proof"
-                                        >
-                                          <Download className="w-3.5 h-3.5" />
-                                        </a>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getPaymentBadge(hasProofOrPaid ? 'Paid' : selectedInvoice.paymentStatus)}`}>
+                            {hasProofOrPaid ? 'Paid' : (selectedInvoice.paymentStatus || 'Payment Pending')}
+                          </span>
+                          {!hasProofOrPaid ? (
+                            <button
+                              onClick={() => handleOpenUploadProofModal(selectedInvoice)}
+                              className="px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                            >
+                              <UploadCloud className="w-3.5 h-3.5" />
+                              <span>Upload Payment Proof</span>
+                            </button>
                           ) : (
-                            <div className="bg-white p-4 rounded-xl border border-dashed border-slate-300 text-center text-slate-500 text-xs">
-                              No payment proof uploaded yet. Click &quot;Upload Payment Proof&quot; to attach payment screenshot, bank receipt, UPI slip, or cheque document.
-                            </div>
+                            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Proof Attached & Paid</span>
+                            </span>
                           )}
                         </div>
                       </div>
 
-                      {/* SECTION 14: SALES PERSON PRODUCTION & PACKING TRACKING UPDATES (Screen Only) */}
-                      {isSentToProd && (
-                        <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 p-5 rounded-2xl border border-blue-200 space-y-4 print:hidden">
-                          <div className="flex items-center justify-between border-b border-blue-100 pb-2">
-                            <div className="flex items-center gap-2">
-                              <Factory className="w-4 h-4 text-blue-600" />
-                              <h4 className="font-bold text-xs text-slate-900">
-                                Live Production & Packing Tracking (Real-Time Updates)
-                              </h4>
-                            </div>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getProductionBadge(prodStatus)}`}>
-                              {prodStatus}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                            <div className="bg-white p-3 rounded-xl border border-slate-200">
-                              <div className="text-[10px] uppercase font-bold text-slate-500">Production Stage</div>
-                              <div className="font-bold text-slate-900 mt-0.5">{prodStatus}</div>
-                            </div>
-                            <div className="bg-white p-3 rounded-xl border border-slate-200">
-                              <div className="text-[10px] uppercase font-bold text-slate-500">Packing Status</div>
-                              <div className="font-bold text-purple-700 mt-0.5">{linkedOrder?.packingStatus || 'Pending'}</div>
-                            </div>
-                            <div className="bg-white p-3 rounded-xl border border-slate-200">
-                              <div className="text-[10px] uppercase font-bold text-slate-500">Serial & Batch</div>
-                              <div className="font-mono font-bold text-blue-700 mt-0.5">
-                                {sNum || bNum ? `${sNum || 'N/A'} / ${bNum || 'N/A'}` : 'To be assigned in Packing'}
-                              </div>
-                            </div>
-                            <div className="bg-white p-3 rounded-xl border border-slate-200">
-                              <div className="text-[10px] uppercase font-bold text-slate-500">Warranty Coverage</div>
-                              <div className="font-bold text-emerald-700 mt-0.5 flex items-center gap-1">
-                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>{wPeriod}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Production & Packing Notes */}
-                          {(prodNotes || packNotes) && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                              {prodNotes && (
-                                <div className="bg-white p-3 rounded-xl border border-slate-200">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Production Notes:</span>
-                                  <p className="text-slate-800 mt-0.5 font-medium">{prodNotes}</p>
-                                </div>
-                              )}
-                              {packNotes && (
-                                <div className="bg-white p-3 rounded-xl border border-slate-200">
-                                  <span className="text-[10px] font-bold text-purple-700 uppercase block">Packing Notes:</span>
-                                  <p className="text-slate-800 mt-0.5 font-medium">{packNotes}</p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Uploaded Product & Packing Images */}
+                      {/* Rejection Alert if rejected */}
+                      {selectedInvoice.paymentStatus === 'Payment Rejected' && (
+                        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5 font-medium">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                           <div>
-                            <div className="text-[11px] font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-                              <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Uploaded Product & Packing Proof Images ({imagesToShow.length})</span>
-                            </div>
-                            {imagesToShow.length > 0 ? (
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                {imagesToShow.map((img, i) => (
-                                  <div
-                                    key={i}
-                                    onClick={() => setPreviewImageUrl(img)}
-                                    className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-video cursor-pointer hover:shadow-md transition"
-                                  >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={img} alt={`Proof ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold">
-                                      View Full Image
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="bg-white p-4 rounded-xl border border-dashed border-slate-300 text-center text-slate-500 text-xs">
-                                No product or packing proof images uploaded yet. Production team will upload photos upon packing.
-                              </div>
-                            )}
+                            <span className="font-bold block">Payment Proof Rejected by Admin/Authorized User</span>
+                            <span>Reason: {selectedInvoice.paymentRejectionReason || 'Proof document does not match payment records.'}</span>
+                            <span className="block mt-1 text-[11px] text-rose-700">Please contact customer, obtain valid payment receipt/screenshot, and click &quot;Upload / Replace Proof&quot; above.</span>
                           </div>
                         </div>
                       )}
+
+                      {/* Verification Notes */}
+                      {selectedInvoice.paymentVerificationNotes && (
+                        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 font-medium">
+                          <span className="font-bold">Verification Notes: </span>
+                          <span>{selectedInvoice.paymentVerificationNotes}</span>
+                        </div>
+                      )}
+
+                      {/* Uploader Meta */}
+                      {(selectedInvoice.paymentProofUploadedBy || selectedInvoice.paymentProofUploadedDate) && (
+                        <div className="text-[11px] text-slate-500 flex items-center gap-4 flex-wrap">
+                          {selectedInvoice.paymentProofUploadedBy && (
+                            <span>Uploaded By: <strong className="text-slate-800">{selectedInvoice.paymentProofUploadedBy}</strong></span>
+                          )}
+                          {selectedInvoice.paymentProofUploadedDate && (
+                            <span>Uploaded Date: <strong className="text-slate-800">{new Date(selectedInvoice.paymentProofUploadedDate).toLocaleString()}</strong></span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Gallery of Uploaded Proofs */}
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                          <Paperclip className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Attached Payment Proof Documents ({selectedInvoice.paymentProofFiles?.length || 0})</span>
+                        </div>
+
+                        {selectedInvoice.paymentProofFiles && selectedInvoice.paymentProofFiles.length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {selectedInvoice.paymentProofFiles.map((item, idx) => {
+                              const parsed = parseProofFile(item);
+                              const isPdf = parsed.type === 'application/pdf' || parsed.url.includes('application/pdf') || parsed.name.toLowerCase().endsWith('.pdf');
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="group relative rounded-xl border border-slate-200 bg-white p-2.5 flex flex-col justify-between hover:shadow-md transition"
+                                >
+                                  {isPdf ? (
+                                    <div className="h-28 flex flex-col items-center justify-center bg-rose-50/50 rounded-lg border border-rose-100 p-2 text-center">
+                                      <FileText className="w-8 h-8 text-rose-600 mb-1" />
+                                      <span className="text-[10px] font-bold text-slate-800 truncate max-w-full" title={parsed.name}>
+                                        {parsed.name}
+                                      </span>
+                                      <span className="text-[9px] text-rose-600 font-semibold uppercase">PDF Document</span>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      onClick={() => setPreviewImageUrl(parsed.url)}
+                                      className="h-28 rounded-lg overflow-hidden bg-slate-100 relative cursor-pointer"
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={parsed.url} alt={parsed.name} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold">
+                                        View Image
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="mt-2 flex items-center justify-between gap-1 pt-1 border-t border-slate-100">
+                                    <span className="text-[10px] font-medium text-slate-600 truncate max-w-[100px]" title={parsed.name}>
+                                      {parsed.name}
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      {isPdf ? (
+                                        <a
+                                          href={parsed.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                          title="Open PDF in new tab"
+                                        >
+                                          <ExternalLink className="w-3.5 h-3.5" />
+                                        </a>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => setPreviewImageUrl(parsed.url)}
+                                          className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                                          title="View Proof"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                      <a
+                                        href={parsed.url}
+                                        download={parsed.name || `Payment_Proof_${idx + 1}`}
+                                        className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700"
+                                        title="Download Proof"
+                                      >
+                                        <Download className="w-3.5 h-3.5" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="bg-white p-4 rounded-xl border border-dashed border-slate-300 text-center text-slate-500 text-xs">
+                            No payment proof uploaded yet. Click &quot;Upload Payment Proof&quot; to attach payment screenshot, bank receipt, UPI slip, or cheque document.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  );
-                })()}
+                  )}
+
+                  {/* SECTION 14: SALES PERSON PRODUCTION & PACKING TRACKING UPDATES (Screen Only) */}
+                  {isSentToProd && (activeViewTab === 'production' || activeViewTab === 'all') && (
+                    <div className="max-w-[820px] w-full mx-auto bg-gradient-to-br from-slate-50 to-blue-50/40 p-5 rounded-2xl border border-blue-200 space-y-4 print:hidden">
+                      <div className="flex items-center justify-between border-b border-blue-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <Factory className="w-4 h-4 text-blue-600" />
+                          <h4 className="font-bold text-xs text-slate-900">
+                            Live Production & Packing Tracking (Real-Time Updates)
+                          </h4>
+                        </div>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getProductionBadge(prodStatus)}`}>
+                          {prodStatus}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] uppercase font-bold text-slate-500">Production Stage</div>
+                          <div className="font-bold text-slate-900 mt-0.5">{prodStatus}</div>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] uppercase font-bold text-slate-500">Packing Status</div>
+                          <div className="font-bold text-purple-700 mt-0.5">{linkedOrder?.packingStatus || 'Pending'}</div>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] uppercase font-bold text-slate-500">Serial & Batch</div>
+                          <div className="font-mono font-bold text-blue-700 mt-0.5">
+                            {sNum || bNum ? `${sNum || 'N/A'} / ${bNum || 'N/A'}` : 'To be assigned in Packing'}
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] uppercase font-bold text-slate-500">Warranty Coverage</div>
+                          <div className="font-bold text-emerald-700 mt-0.5 flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{wPeriod}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Production & Packing Notes */}
+                      {(prodNotes || packNotes) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          {prodNotes && (
+                            <div className="bg-white p-3 rounded-xl border border-slate-200">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase block">Production Notes:</span>
+                              <p className="text-slate-800 mt-0.5 font-medium">{prodNotes}</p>
+                            </div>
+                          )}
+                          {packNotes && (
+                            <div className="bg-white p-3 rounded-xl border border-slate-200">
+                              <span className="text-[10px] font-bold text-purple-700 uppercase block">Packing Notes:</span>
+                              <p className="text-slate-800 mt-0.5 font-medium">{packNotes}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Uploaded Product & Packing Images */}
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                          <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Uploaded Product & Packing Proof Images ({imagesToShow.length})</span>
+                        </div>
+                        {imagesToShow.length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {imagesToShow.map((img, i) => (
+                              <div
+                                key={i}
+                                onClick={() => setPreviewImageUrl(img)}
+                                className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-video cursor-pointer hover:shadow-md transition"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={img} alt={`Proof ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold">
+                                  View Full Image
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-white p-4 rounded-xl border border-dashed border-slate-300 text-center text-slate-500 text-xs">
+                            No product or packing proof images uploaded yet. Production team will upload photos upon packing.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );

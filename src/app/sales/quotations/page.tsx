@@ -58,6 +58,8 @@ export default function QuotationsPage() {
     createFollowUpFull,
     generateEntityCode,
     activeRole,
+    currentUser,
+    scopedSalesperson,
     refreshProductsFromDB,
     refreshRawMaterialsFromDB,
     refreshQuotationsFromDB,
@@ -382,7 +384,7 @@ export default function QuotationsPage() {
       deliveryTerms: formDeliveryTerms,
       warrantyTerms: formWarrantyTerms,
       signatory: formSignatory,
-      salesperson: activeRole === 'ADMIN' ? 'Administrator' : 'Sales Person',
+      salesperson: scopedSalesperson || (activeRole === 'ADMIN' ? 'Administrator' : 'Rajesh Kumar'),
     };
 
     const res = await createQuotation(quotationData);
@@ -518,6 +520,15 @@ export default function QuotationsPage() {
   // Filtered Quotations
   const filteredQuotations = useMemo(() => {
     return quotations.filter((q) => {
+      // Individual Salesperson Scoping
+      if (scopedSalesperson) {
+        const sp = (q.salesperson || '').toLowerCase().trim();
+        const myName = scopedSalesperson.toLowerCase().trim();
+        if (sp !== myName) {
+          return false;
+        }
+      }
+
       // Tab filter
       if (statusTab !== 'ALL') {
         if (statusTab === 'Rejected') {
@@ -574,11 +585,15 @@ export default function QuotationsPage() {
 
   // Statistics KPI counts
   const stats = useMemo(() => {
-    const total = quotations.length;
-    const drafts = quotations.filter((q) => q.status === 'Draft' || q.status === 'Sent to Customer' || q.status === 'Sent to Client').length;
-    const approved = quotations.filter((q) => q.status === 'Customer Approved' || q.status === 'Approved' || q.status === 'Confirmed').length;
-    const invoiceGenerated = quotations.filter((q) => q.status === 'Invoice Generated' || q.status === 'Payment Pending' || q.status === 'Payment Completed').length;
-    const inProduction = quotations.filter(
+    const list = scopedSalesperson
+      ? quotations.filter((q) => (q.salesperson || '').toLowerCase().trim() === scopedSalesperson.toLowerCase().trim())
+      : quotations;
+
+    const total = list.length;
+    const drafts = list.filter((q) => q.status === 'Draft' || q.status === 'Sent to Customer' || q.status === 'Sent to Client').length;
+    const approved = list.filter((q) => q.status === 'Customer Approved' || q.status === 'Approved' || q.status === 'Confirmed').length;
+    const invoiceGenerated = list.filter((q) => q.status === 'Invoice Generated' || q.status === 'Payment Pending' || q.status === 'Payment Completed').length;
+    const inProduction = list.filter(
       (q) =>
         q.status === 'Sent to Production' ||
         q.status === 'Sent to Product' ||
@@ -588,10 +603,10 @@ export default function QuotationsPage() {
         q.status === 'Packed' ||
         q.status === 'Ready for Dispatch'
     ).length;
-    const dispatched = quotations.filter((q) => q.status === 'Dispatched' || q.status === 'Completed').length;
+    const dispatched = list.filter((q) => q.status === 'Dispatched' || q.status === 'Completed').length;
 
     return { total, drafts, approved, invoiceGenerated, inProduction, dispatched };
-  }, [quotations]);
+  }, [quotations, scopedSalesperson]);
 
   // Status Badge Helper
   const renderStatusBadge = (status: QuotationStatus) => {
@@ -700,6 +715,21 @@ export default function QuotationsPage() {
           </div>
         </div>
 
+        {/* Individual Salesperson Scope Notification */}
+        {scopedSalesperson && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-blue-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+              <span>
+                <strong>Personal Quotations:</strong> Displaying quotes prepared by or assigned to <strong>{scopedSalesperson}</strong> ({filteredQuotations.length} records).
+              </span>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-200 text-blue-800">
+              Personal Scope
+            </span>
+          </div>
+        )}
+
         {/* Leads in Send Quotation Stage Notification */}
         {leadsRequestingQuote.length > 0 && (
           <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-emerald-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
@@ -766,7 +796,7 @@ export default function QuotationsPage() {
               <div className="text-[10px] text-slate-500">Stock Decrements</div>
             </div>
           </div>
-        </div> */}
+        </div>
 
         {/* KPI Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -798,6 +828,21 @@ export default function QuotationsPage() {
             <div className="text-xl font-bold text-blue-600 mt-1">{stats.inProduction + stats.dispatched}</div>
           </div>
         </div>
+
+        {/* Individual Salesperson Scope Notification */}
+        {scopedSalesperson && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-blue-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+              <span>
+                <strong>Personal Quotations:</strong> Displaying quotes prepared by or assigned to <strong>{scopedSalesperson}</strong> ({filteredQuotations.length} records).
+              </span>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-200 text-blue-800">
+              Personal Scope
+            </span>
+          </div>
+        )}
 
         {/* Filter Tabs & Search Bar */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
@@ -921,7 +966,8 @@ export default function QuotationsPage() {
           </div>
         </div>
 
-        {/* Quotations List Table */}
+        {/* Individual Salesperson Scope Notification */}
+
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="w-full overflow-hidden">
             <table className="w-full text-left border-collapse text-xs table-fixed">

@@ -106,6 +106,8 @@ export default function LeadsPage() {
     createFollowUpFull,
     updateFollowUpStatusFull,
     activeRole,
+    currentUser,
+    scopedSalesperson,
   } = useERP();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -202,6 +204,15 @@ export default function LeadsPage() {
 
   // Filtered Leads
   const filteredLeads = leads.filter((l) => {
+    // Individual Salesperson Scoping
+    if (scopedSalesperson) {
+      const sp = (l.salesperson || l.assignedUser || '').toLowerCase().trim();
+      const myName = scopedSalesperson.toLowerCase().trim();
+      if (sp !== myName) {
+        return false;
+      }
+    }
+
     const q = searchQuery.toLowerCase();
     const matchSearch =
       (l.leadName || '').toLowerCase().includes(q) ||
@@ -281,7 +292,7 @@ export default function LeadsPage() {
     setFormGstin('');
     setFormIndustry('');
     setFormSource('Website');
-    setFormSalesperson(activeRole === 'ADMIN' ? 'Administrator' : 'Rajesh Kumar');
+    setFormSalesperson(scopedSalesperson || (activeRole === 'ADMIN' ? 'Administrator' : 'Rajesh Kumar'));
     setFormWebsite('');
     setFormRequirement('');
     if (products.length > 0) setFormProductId(products[0].id);
@@ -738,6 +749,21 @@ export default function LeadsPage() {
             </button>
           </div>
         </div>
+
+        {/* Individual Salesperson Scope Notification */}
+        {scopedSalesperson && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-blue-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+              <span>
+                <strong>Personal Lead Pipeline:</strong> Only showing leads assigned to <strong>{scopedSalesperson}</strong> ({filteredLeads.length} records).
+              </span>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-200 text-blue-800">
+              Personal Scope
+            </span>
+          </div>
+        )}
 
         {/* PENDING FOLLOW-UPS NOTIFICATION (Compact single row) */}
         {pendingFollowups.length > 0 && (

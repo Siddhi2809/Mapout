@@ -62,6 +62,8 @@ export default function ProductSalesOrdersPage() {
     | 'Packed'
     | 'Ready for Dispatch'
   >('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Modal State
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
@@ -332,11 +334,36 @@ export default function ProductSalesOrdersPage() {
           i.sku.toLowerCase().includes(searchLower)
       );
 
+    if (!matchSearch) return false;
+
+    // Date Range Filter (From - To)
+    const parseDateForFilter = (dateStr?: string) => {
+      if (!dateStr) return '';
+      const clean = dateStr.trim().split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+        const [d, m, y] = clean.split('/');
+        return `${y}-${m}-${d}`;
+      }
+      const parsed = new Date(clean);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+      }
+      return clean;
+    };
+
+    const orderDateClean = parseDateForFilter(so.sentToProductDate || so.orderDate || so.expectedDelivery || so.createdAt);
+    if (startDate && orderDateClean && orderDateClean < startDate) {
+      return false;
+    }
+    if (endDate && orderDateClean && orderDateClean > endDate) {
+      return false;
+    }
+
     // Tab Filter
-    if (filterTab === 'ALL') return matchSearch;
+    if (filterTab === 'ALL') return true;
 
     const currentProd = (so.productionStatus || so.orderStatus || '').toLowerCase();
-    const tabLower = filterTab.toLowerCase();
 
     let matchTab = false;
     if (filterTab === 'Sent to Production') {
@@ -353,7 +380,7 @@ export default function ProductSalesOrdersPage() {
       matchTab = currentProd.includes('ready');
     }
 
-    return matchSearch && matchTab;
+    return matchTab;
   });
 
   const handleOpenProcessModal = (order: SalesOrder) => {
@@ -462,6 +489,7 @@ export default function ProductSalesOrdersPage() {
         createdAt: order.createdAt || new Date().toISOString(),
       };
     }
+    setSelectedOrder(order);
     setSelectedInvoiceForView(invToView);
     setIsInvoiceViewModalOpen(true);
   };
@@ -877,25 +905,72 @@ export default function ProductSalesOrdersPage() {
               />
             </div>
           </div>
+
+          {/* Secondary Filter Row: Date Range & Clear */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Date Filter (From - To) */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-700">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span className="text-slate-500 font-medium">From:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-transparent text-slate-800 font-medium focus:outline-none cursor-pointer"
+                  title="From Order Date"
+                />
+                <span className="text-slate-400 font-medium mx-1">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-transparent text-slate-800 font-medium focus:outline-none cursor-pointer"
+                  title="To Order Date"
+                />
+              </div>
+
+              {/* Clear Filters Button */}
+              {(startDate || endDate || filterTab !== 'ALL' || searchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    setFilterTab('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer text-xs"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Clear Filters</span>
+                </button>
+              )}
+            </div>
+
+            <div className="text-xs text-slate-500 font-medium">
+              Showing <strong className="text-slate-800 font-bold">{filteredOrders.length}</strong> of {productOrders.length} production orders
+            </div>
+          </div>
         </div>
 
         {/* Orders Table */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="w-full overflow-hidden">
+            <table className="table-fixed w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold">
-                  <th className="p-3.5">Invoice & Quote #</th>
-                  <th className="p-3.5">Customer & ID</th>
-                  <th className="p-3.5">Product & SKU</th>
-                  <th className="p-3.5 text-right font-bold">Qty</th>
-                  <th className="p-3.5 text-center">Required Date</th>
-                  <th className="p-3.5 text-center">Payment Status</th>
-                  <th className="p-3.5 text-center">Production Status</th>
-                  <th className="p-3.5 text-center">Packing Status</th>
-                  <th className="p-3.5 text-center">Photos</th>
-                  <th className="p-3.5">Production Notes</th>
-                  <th className="p-3.5 text-center">Action</th>
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold text-[11px]">
+                  <th className="py-3 px-2.5 w-[11%]">Invoice & Quote #</th>
+                  <th className="py-3 px-2.5 w-[13%]">Customer</th>
+                  <th className="py-3 px-2.5 w-[14%]">Product & SKU</th>
+                  <th className="py-3 px-2 text-right font-bold w-[5%]">Qty</th>
+                  <th className="py-3 px-2 text-center w-[8%]">Date</th>
+                  <th className="py-3 px-1.5 text-center w-[8%]">Payment</th>
+                  <th className="py-3 px-1.5 text-center w-[9%]">Production</th>
+                  <th className="py-3 px-1.5 text-center w-[8%]">Packing</th>
+                  <th className="py-3 px-1 text-center w-[6%]">Photos</th>
+                  <th className="py-3 px-2 w-[8%]">Notes</th>
+                  <th className="py-3 px-2 text-center w-[10%]">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -928,136 +1003,141 @@ export default function ProductSalesOrdersPage() {
                   return (
                     <tr key={so.id} className="hover:bg-slate-50/80 transition">
                       {/* Invoice & Quotation # */}
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-1.5">
+                      <td className="py-2.5 px-2.5 align-middle truncate min-w-0">
+                        <div className="flex items-center gap-1 truncate">
                           <button
                             type="button"
                             onClick={() => handleOpenInvoiceView(so, linkedInv)}
-                            className="font-mono text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 group cursor-pointer hover:underline text-left"
+                            className="font-mono text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 group cursor-pointer hover:underline text-left truncate text-xs"
                             title="Click to view full Tax Invoice"
                           >
                             <span className="text-[10px] text-slate-500 uppercase font-sans font-medium">Inv:</span>
-                            <span>{invoiceNumber}</span>
+                            <span className="truncate">{invoiceNumber}</span>
                             <Eye className="w-3 h-3 text-blue-500 group-hover:text-blue-700 shrink-0" />
                           </button>
                         </div>
                         {so.quotationNumber ? (
-                          <div className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-purple-800 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
-                            <FileText className="w-3 h-3 text-purple-600" />
-                            <span>Quote: {so.quotationNumber}</span>
+                          <div className="inline-flex items-center gap-1 mt-0.5 text-[10px] font-bold text-purple-800 bg-purple-50 border border-purple-200 px-1.5 py-0.2 rounded max-w-full truncate" title={`Quotation: ${so.quotationNumber}`}>
+                            <FileText className="w-2.5 h-2.5 text-purple-600 shrink-0" />
+                            <span className="truncate">{so.quotationNumber}</span>
                           </div>
                         ) : (
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{so.orderNumber}</div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">{so.orderNumber}</div>
                         )}
                       </td>
 
                       {/* Customer & ID */}
-                      <td className="p-3.5 max-w-[180px]">
-                        <div className="font-bold text-slate-900 truncate">{so.customerName}</div>
-                        <div className="mt-0.5">
-                          <span className="px-1.5 py-0.2 rounded font-mono text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      <td className="py-2.5 px-2.5 align-middle truncate min-w-0">
+                        <div className="font-bold text-slate-900 text-xs truncate" title={so.customerName}>
+                          {so.customerName}
+                        </div>
+                        <div className="mt-0.5 flex items-center">
+                          <span className="px-1.5 py-0.2 rounded font-mono text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 truncate" title={`Customer Code: ${customerNumber}`}>
                             {customerNumber}
                           </span>
                         </div>
                       </td>
 
                       {/* Products & SKU */}
-                      <td className="p-3.5 max-w-[220px]">
-                        <div className="space-y-1">
-                          {so.items.map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-1.5 text-slate-800">
-                              <span className="font-semibold truncate">{item.productName}</span>
-                              <span className="font-mono text-[10px] text-blue-600 font-bold">({item.sku})</span>
+                      <td className="py-2.5 px-2.5 align-middle truncate min-w-0">
+                        <div className="space-y-0.5">
+                          {so.items.slice(0, 2).map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-1 text-slate-800 text-[11px] truncate" title={`${item.productName} (${item.sku})`}>
+                              <span className="font-medium truncate">{item.productName}</span>
+                              <span className="font-mono text-[10px] text-blue-600 font-semibold shrink-0">({item.sku})</span>
                             </div>
                           ))}
+                          {so.items.length > 2 && (
+                            <div className="text-[10px] text-slate-400 font-medium italic">
+                              +{so.items.length - 2} more item{so.items.length - 2 > 1 ? 's' : ''}
+                            </div>
+                          )}
                         </div>
                         {so.rawMaterialsDeducted && (
-                          <div className="mt-1">
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="Raw material components deducted from stock in DB">
-                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Stock Deducted
+                          <div className="mt-0.5">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 truncate" title="Raw material components deducted from stock in DB">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" /> Stock Deducted
                             </span>
                           </div>
                         )}
                       </td>
 
                       {/* Quantity */}
-                      <td className="p-3.5 text-right font-bold text-slate-900 font-mono text-sm">
+                      <td className="py-2.5 px-2 text-right font-bold text-slate-900 font-mono text-xs align-middle">
                         {totalRequiredQty}
                       </td>
 
                       {/* Required / Sent Date */}
-                      <td className="p-3.5 text-center font-mono text-slate-600 font-medium whitespace-nowrap">
+                      <td className="py-2.5 px-2 text-center font-mono text-slate-600 text-[11px] font-medium whitespace-nowrap align-middle truncate" title={so.sentToProductDate || so.expectedDelivery || so.orderDate}>
                         {so.sentToProductDate || so.expectedDelivery || so.orderDate}
                       </td>
 
-                      {/* Payment Status (Section 12: Production verifies payment received) */}
-                      <td className="p-3.5 text-center">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>{paymentStatus === 'Paid' ? 'Paid (100%)' : paymentStatus}</span>
+                      {/* Payment Status */}
+                      <td className="py-2.5 px-1.5 text-center align-middle">
+                        <span className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                          <span>{paymentStatus === 'Paid' ? 'Paid' : paymentStatus}</span>
                         </span>
                       </td>
 
                       {/* Production Status */}
-                      <td className="p-3.5 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getProductionBadge(effectiveProdStatus)}`}>
+                      <td className="py-2.5 px-1.5 text-center align-middle">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border truncate max-w-full ${getProductionBadge(effectiveProdStatus)}`} title={effectiveProdStatus}>
                           {effectiveProdStatus}
                         </span>
                       </td>
 
                       {/* Packing Status */}
-                      <td className="p-3.5 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getPackingBadge(effectivePackingStatus)}`}>
+                      <td className="py-2.5 px-1.5 text-center align-middle">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border truncate max-w-full ${getPackingBadge(effectivePackingStatus)}`} title={effectivePackingStatus}>
                           {effectivePackingStatus}
                         </span>
                       </td>
 
                       {/* Uploaded Images Preview */}
-                      <td className="p-3.5 text-center">
+                      <td className="py-2.5 px-1 text-center align-middle">
                         {imagesCount > 0 ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const first = so.productionImages?.[0] || so.packedImage;
-                                if (first) setPreviewLightboxImage(first);
-                              }}
-                              className="group relative inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition"
-                              title="Click to view images"
-                            >
-                              <Camera className="w-3.5 h-3.5 text-blue-600" />
-                              <span className="font-bold text-[11px]">{imagesCount}</span>
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const first = so.productionImages?.[0] || so.packedImage;
+                              if (first) setPreviewLightboxImage(first);
+                            }}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition cursor-pointer text-[10px] font-bold"
+                            title="Click to view images"
+                          >
+                            <Camera className="w-3 h-3 text-blue-600 shrink-0" />
+                            <span>{imagesCount}</span>
+                          </button>
                         ) : (
-                          <span className="text-[10px] text-slate-400 italic">No photos</span>
+                          <span className="text-[10px] text-slate-400 italic">None</span>
                         )}
                       </td>
 
                       {/* Production Notes Preview */}
-                      <td className="p-3.5 max-w-[180px] truncate text-slate-600 italic">
-                        {so.productionNotes || so.productTeamRemarks || 'No notes added'}
+                      <td className="py-2.5 px-2 text-slate-600 italic text-[11px] align-middle truncate" title={so.productionNotes || so.productTeamRemarks || 'No notes'}>
+                        {so.productionNotes || so.productTeamRemarks || '—'}
                       </td>
 
                       {/* Actions */}
-                      <td className="p-3.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="py-2.5 px-2 text-center whitespace-nowrap align-middle">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
                             onClick={() => handleOpenInvoiceView(so, linkedInv)}
-                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 font-bold text-[11px] flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
-                            title="View official Tax Invoice for this production order"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-300 transition cursor-pointer shrink-0"
+                            title="View official Tax Invoice"
                           >
                             <FileText className="w-3.5 h-3.5 text-blue-600" />
-                            <span>View Invoice</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleOpenProcessModal(so)}
-                            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 transition shadow-xs cursor-pointer shrink-0"
+                            title="Process and update order"
                           >
-                            <PackageCheck className="w-3.5 h-3.5" />
-                            <span>Process Order</span>
+                            <PackageCheck className="w-3 h-3" />
+                            <span>Process</span>
                           </button>
                         </div>
                       </td>
@@ -1067,7 +1147,7 @@ export default function ProductSalesOrdersPage() {
 
                 {filteredOrders.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="p-12 text-center text-slate-500 text-xs font-medium">
+                    <td colSpan={11} className="p-12 text-center text-slate-500 text-xs font-medium">
                       No production orders found under the selected filter tab.
                     </td>
                   </tr>

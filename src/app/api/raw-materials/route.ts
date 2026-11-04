@@ -111,6 +111,7 @@ export async function PUT(request: Request) {
 
         const targetId = item.rawMaterialId || item.id;
         const targetSku = item.sku;
+        const targetName = item.rawMaterialName || item.name;
 
         const rm = await prisma.rawMaterial.findFirst({
           where: {
@@ -118,7 +119,9 @@ export async function PUT(request: Request) {
               ...(targetId ? [{ id: targetId }] : []),
               ...(targetId ? [{ sku: targetId }] : []),
               ...(targetSku ? [{ sku: targetSku }] : []),
-              ...(item.rawMaterialName ? [{ name: item.rawMaterialName }] : []),
+              ...(targetSku ? [{ sku: { equals: targetSku, mode: 'insensitive' as const } }] : []),
+              ...(targetName ? [{ name: targetName }] : []),
+              ...(targetName ? [{ name: { equals: targetName, mode: 'insensitive' as const } }] : []),
             ],
           },
         });
@@ -158,6 +161,7 @@ export async function PUT(request: Request) {
 
         const targetId = item.rawMaterialId || item.id;
         const targetSku = item.sku;
+        const targetName = item.rawMaterialName || item.name;
 
         const rm = await prisma.rawMaterial.findFirst({
           where: {
@@ -165,7 +169,9 @@ export async function PUT(request: Request) {
               ...(targetId ? [{ id: targetId }] : []),
               ...(targetId ? [{ sku: targetId }] : []),
               ...(targetSku ? [{ sku: targetSku }] : []),
-              ...(item.rawMaterialName ? [{ name: item.rawMaterialName }] : []),
+              ...(targetSku ? [{ sku: { equals: targetSku, mode: 'insensitive' as const } }] : []),
+              ...(targetName ? [{ name: targetName }] : []),
+              ...(targetName ? [{ name: { equals: targetName, mode: 'insensitive' as const } }] : []),
             ],
           },
         });

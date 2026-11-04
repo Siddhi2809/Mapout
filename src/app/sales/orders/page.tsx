@@ -57,6 +57,8 @@ export default function SalesOrdersPage() {
     invoices,
     quotations,
     activeRole,
+    currentUser,
+    scopedSalesperson,
     generateEntityCode,
     refreshProductsFromDB,
     refreshRawMaterialsFromDB,
@@ -152,6 +154,15 @@ export default function SalesOrdersPage() {
 
   const filteredOrders = useMemo(() => {
     return salesOrders.filter((so) => {
+      // Individual Salesperson Scoping
+      if (scopedSalesperson) {
+        const sp = (so.salesperson || so.createdBy || '').toLowerCase().trim();
+        const myName = scopedSalesperson.toLowerCase().trim();
+        if (sp !== myName) {
+          return false;
+        }
+      }
+
       const matchSearch =
         so.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (so.invoiceNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -183,7 +194,9 @@ export default function SalesOrdersPage() {
     setFormCustomerId(customerId);
     const selectedCust = customers.find((c) => c.id === customerId);
     if (selectedCust) {
-      if (selectedCust.assignedSalesUser) {
+      if (scopedSalesperson) {
+        setFormSalesperson(scopedSalesperson);
+      } else if (selectedCust.assignedSalesUser) {
         setFormSalesperson(selectedCust.assignedSalesUser);
       }
       if (selectedCust.customerSource) {
@@ -216,7 +229,7 @@ export default function SalesOrdersPage() {
 
     const defaultCustomer = customers.length > 0 ? customers[0] : null;
     const defaultCustomerId = defaultCustomer ? defaultCustomer.id : '';
-    const defaultSalesperson = defaultCustomer?.assignedSalesUser || 'Rajesh Kumar';
+    const defaultSalesperson = scopedSalesperson || defaultCustomer?.assignedSalesUser || 'Rajesh Kumar';
     const defaultChannel = defaultCustomer?.customerSource || 'Distributor';
     const defaultShipping = defaultCustomer?.shippingAddress || (defaultCustomer?.address ? `${defaultCustomer.address}, ${defaultCustomer.city}` : '');
 
@@ -854,6 +867,21 @@ export default function SalesOrdersPage() {
             </button>
           </div>
         </div>
+
+        {/* Individual Salesperson Scope Notification */}
+        {scopedSalesperson && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-blue-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+              <span>
+                <strong>Personal Sales Orders:</strong> Displaying orders created by or assigned to <strong>{scopedSalesperson}</strong> ({filteredOrders.length} orders).
+              </span>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-200 text-blue-800">
+              Personal Scope
+            </span>
+          </div>
+        )}
 
         {/* Action Prompt Banner: If an order was created without a quotation */}
         {createdOrderPrompt && (

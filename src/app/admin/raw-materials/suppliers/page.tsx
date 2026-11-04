@@ -98,16 +98,6 @@ export default function AdminSuppliersPage() {
 
     addSupplier(newSup as any);
 
-    try {
-      await fetch('/api/suppliers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSup),
-      });
-    } catch (err) {
-      console.error(err);
-    }
-
     setShowAddModal(false);
     setSupplierForm({
       name: '',

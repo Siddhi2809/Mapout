@@ -324,14 +324,15 @@ export default function SuppliersPage() {
       setFormError('Company Name is required.');
       return;
     }
+    if (!formData.contactPerson.trim()) {
+      setFormError('Contact Person / Representative is required.');
+      return;
+    }
     if (!formData.supplierCode.trim()) {
       setFormError('Supplier Code is required.');
       return;
     }
-    if (!formData.contactPerson.trim()) {
-      setFormError('Contact Person is required.');
-      return;
-    }
+
     if (!formData.phone.trim()) {
       setFormError('Mobile / Phone is required.');
       return;
@@ -585,7 +586,7 @@ export default function SuppliersPage() {
                                 supplierCode: sup.supplierCode || '',
                                 name: sup.name,
                                 companyName: sup.companyName || '',
-                                contactPerson: sup.contactPerson,
+                                contactPerson: sup.contactPerson || '',
                                 email: sup.email,
                                 phone: sup.phone,
                                 gstNumber: sup.gstNumber || '',
@@ -686,6 +687,20 @@ export default function SuppliersPage() {
                       placeholder="e.g. PolyTech Electrical Components Pvt Ltd"
                       value={formData.companyName}
                       onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      Contact Person / Representative <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rajesh Sharma"
+                      value={formData.contactPerson}
+                      onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
                     />
                   </div>

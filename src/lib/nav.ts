@@ -30,8 +30,7 @@ export const RAW_MATERIAL_NAV: NavItem[] = [
   { label: 'Material Receipts', href: '/raw-material/receipts', icon: FileCheck },
   { label: 'Material Consumption', href: '/raw-material/consumption', icon: Factory },
   { label: 'Payments', href: '/raw-material/payments', icon: CreditCard },
-  { label: 'Reports', href: '/raw-material/reports', icon: BarChart3 },
-  { label: 'Daily Report', href: '/daily-report', icon: ClipboardList },
+  
 ];
 
 export const PRODUCT_NAV: NavItem[] = [
@@ -42,8 +41,7 @@ export const PRODUCT_NAV: NavItem[] = [
   { label: 'BOM', href: '/product/bom', icon: Layers },
   { label: 'Finished Goods', href: '/product/finished-goods', icon: PackageCheck },
   { label: 'Returns / Replacement', href: '/product/returns', icon: RotateCcw },
-  { label: 'Reports', href: '/product/reports', icon: BarChart3 },
-  { label: 'Daily Report', href: '/daily-report', icon: ClipboardList },
+ 
 ];
 
 export const SALES_NAV: NavItem[] = [
@@ -56,7 +54,7 @@ export const SALES_NAV: NavItem[] = [
   { label: 'Leads', href: '/sales/leads', icon: UserCheck },
   { label: 'Follow-ups', href: '/sales/follow-ups', icon: Calendar },
   { label: 'Payments', href: '/sales/payments', icon: CreditCard },
-  { label: 'Dispatch', href: '/sales/dispatch', icon: Truck },
+ 
 ];
 
 export const ADMIN_NAV: NavItem[] = [

@@ -46,6 +46,7 @@ import {
   EntityType,
   extractCodeNumber,
 } from '../lib/sequence';
+import { DemoUser } from '../lib/auth';
 import {
   INITIAL_RAW_MATERIALS,
   INITIAL_FINISHED_GOODS,
@@ -73,6 +74,9 @@ import {
 } from '../lib/mockData';
 
 interface ERPContextType {
+  currentUser: DemoUser | null;
+  setCurrentUser: (user: DemoUser | null) => void;
+  scopedSalesperson: string | null;
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
   generateEntityCode: (entityType: EntityType) => string;
@@ -349,7 +353,24 @@ const ERPContext = createContext<ERPContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY = 'SUNYASH_MAPOUT_ERP_STATE_V3';
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
   const [activeRole, setActiveRole] = useState<UserRole>('ADMIN');
+
+  const scopedSalesperson = useMemo(() => {
+    if (!currentUser) return null;
+    if (activeRole !== 'SALES') return null;
+    if (currentUser.isIndividualSales === false) return null;
+    if (
+      currentUser.name === 'Admin' ||
+      currentUser.name === 'Administrator' ||
+      currentUser.name === 'Sales Manager' ||
+      currentUser.roleTitle === 'Administrator' ||
+      currentUser.roleTitle === 'General Sales Manager'
+    ) {
+      return null;
+    }
+    return currentUser.name;
+  }, [currentUser, activeRole]);
 
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>(INITIAL_RAW_MATERIALS);
   const [finishedGoods, setFinishedGoods] = useState<FinishedGood[]>(INITIAL_FINISHED_GOODS);
@@ -393,6 +414,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const userStr = localStorage.getItem('crm_user');
       if (userStr) {
         const u = JSON.parse(userStr);
+        setCurrentUser(u);
         if (u.role) setActiveRole(u.role);
       }
     } catch {}
@@ -2520,6 +2542,200 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newId = `so-${Date.now().toString().slice(-4)}`;
     const today = new Date().toISOString().split('T')[0];
 
+    // 2. Identify and execute deductions for Raw Materials & Finished Goods sold directly
+    const rawMaterialDeductions: Array<{
+      rawMaterialId: string;
+      rawMaterialName: string;
+      sku?: string;
+      unit?: string;
+      quantity: number;
+    }> = [];
+
+    const fgDeductions: Array<{
+      productId: string;
+      productName: string;
+      sku?: string;
+      quantity: number;
+    }> = [];
+
+    order.items.forEach((item) => {
+      const isRawMaterial =
+        item.itemType === 'RAW_MATERIAL' ||
+        order.saleType === 'RAW_MATERIAL' ||
+        order.saleType === 'Raw Material' ||
+        rawMaterials.some(
+          (rm) =>
+            rm.id === item.productId ||
+            (item.sku && rm.sku && rm.sku.toLowerCase() === item.sku.toLowerCase()) ||
+            rm.id === item.rawMaterialId
+        );
+
+      if (isRawMaterial) {
+        const rm = rawMaterials.find(
+          (m) =>
+            m.id === item.productId ||
+            m.id === item.rawMaterialId ||
+            (m.sku && item.sku && m.sku.toLowerCase() === item.sku.toLowerCase()) ||
+            m.name.toLowerCase() === item.productName.toLowerCase()
+        );
+
+        const rmId = rm ? rm.id : (item.rawMaterialId || item.productId);
+        const rmName = rm ? rm.name : item.productName;
+        const rmSku = rm?.sku || item.sku;
+        const rmUnit = rm?.unit || item.unit || 'PCS';
+        const qty = Number(item.quantity) || 0;
+
+        if (qty > 0) {
+          const existingDeduction = rawMaterialDeductions.find(
+            (d) => d.rawMaterialId === rmId || (d.sku && rmSku && d.sku.toLowerCase() === rmSku.toLowerCase())
+          );
+          if (existingDeduction) {
+            existingDeduction.quantity += qty;
+          } else {
+            rawMaterialDeductions.push({
+              rawMaterialId: rmId,
+              rawMaterialName: rmName,
+              sku: rmSku,
+              unit: rmUnit,
+              quantity: qty,
+            });
+          }
+        }
+      } else {
+        const prod = products.find(
+          (p) =>
+            p.id === item.productId ||
+            (p.sku && item.sku && p.sku.toLowerCase() === item.sku.toLowerCase()) ||
+            p.name.toLowerCase() === item.productName.toLowerCase()
+        );
+        const qty = Number(item.quantity) || 0;
+        if (prod && qty > 0) {
+          const existingDeduction = fgDeductions.find((d) => d.productId === prod.id);
+          if (existingDeduction) {
+            existingDeduction.quantity += qty;
+          } else {
+            fgDeductions.push({
+              productId: prod.id,
+              productName: prod.name,
+              sku: prod.sku,
+              quantity: qty,
+            });
+          }
+        }
+      }
+    });
+
+    // 3. Deduct Raw Materials from local state, log stock transaction, and persist to DB
+    if (rawMaterialDeductions.length > 0) {
+      setRawMaterials((prev) =>
+        prev.map((rm) => {
+          const deduction = rawMaterialDeductions.find(
+            (d) =>
+              d.rawMaterialId === rm.id ||
+              (d.sku && rm.sku && d.sku.toLowerCase() === rm.sku.toLowerCase()) ||
+              d.rawMaterialName.toLowerCase() === rm.name.toLowerCase()
+          );
+          if (deduction) {
+            return {
+              ...rm,
+              currentStock: Math.max(0, rm.currentStock - deduction.quantity),
+            };
+          }
+          return rm;
+        })
+      );
+
+      // Log Raw Material Stock Transactions
+      rawMaterialDeductions.forEach((d) => {
+        const rm = rawMaterials.find(
+          (m) =>
+            m.id === d.rawMaterialId ||
+            (d.sku && m.sku && d.sku.toLowerCase() === m.sku.toLowerCase()) ||
+            m.name.toLowerCase() === d.rawMaterialName.toLowerCase()
+        );
+        const prevBal = rm ? rm.currentStock : 0;
+        const newBal = Math.max(0, prevBal - d.quantity);
+
+        const tx: RawMaterialStockTransaction = {
+          id: `tx-${Date.now().toString().slice(-5)}-so-${orderNumber}-${d.rawMaterialId.slice(-4)}`,
+          materialId: d.rawMaterialId,
+          materialName: d.rawMaterialName,
+          date: today,
+          transactionType: 'RAW_MATERIAL_SALE',
+          reference: orderNumber,
+          quantityIn: 0,
+          quantityOut: d.quantity,
+          previousBalance: prevBal,
+          newBalance: newBal,
+          user: order.createdBy || (activeRole === 'ADMIN' ? 'Admin' : 'Sales Person'),
+        };
+        setStockTransactions((st) => [tx, ...st]);
+      });
+
+      // Sync batch deductions to DB API
+      fetch('/api/raw-materials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deductions: rawMaterialDeductions }),
+      })
+        .then((res) => res.json())
+        .then((resJson) => {
+          if (resJson?.success && Array.isArray(resJson.data)) {
+            setRawMaterials((prev) =>
+              prev.map((rm) => {
+                const srv = resJson.data.find((r: any) => r.id === rm.id || r.sku === rm.sku);
+                return srv ? { ...rm, currentStock: srv.updatedStock } : rm;
+              })
+            );
+          }
+        })
+        .catch((err) => console.warn('Failed to sync raw material deductions to DB:', err));
+    }
+
+    // 4. Deduct Finished Goods from local state and DB (if any FG items)
+    if (fgDeductions.length > 0) {
+      setProducts((prev) =>
+        prev.map((prod) => {
+          const deduction = fgDeductions.find(
+            (d) => d.productId === prod.id || (d.sku && prod.sku && d.sku.toLowerCase() === prod.sku.toLowerCase())
+          );
+          if (deduction) {
+            const updatedStock = Math.max(0, prod.currentStock - deduction.quantity);
+            fetch('/api/products', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: prod.id,
+                sku: prod.sku,
+                currentStock: updatedStock,
+              }),
+            }).catch((err) => console.warn('Failed to sync product stock to DB:', err));
+
+            return {
+              ...prod,
+              currentStock: updatedStock,
+            };
+          }
+          return prod;
+        })
+      );
+
+      setFinishedGoods((prev) =>
+        prev.map((fg) => {
+          const deduction = fgDeductions.find(
+            (d) => d.productId === fg.id || (d.sku && fg.sku && d.sku.toLowerCase() === fg.sku.toLowerCase())
+          );
+          if (deduction) {
+            return {
+              ...fg,
+              currentStock: Math.max(0, fg.currentStock - deduction.quantity),
+            };
+          }
+          return fg;
+        })
+      );
+    }
+
     const grandTotal = Math.round(order.subtotal - order.discountAmount + order.taxAmount);
     const amountPaid = order.amountPaid || 0;
     const pendingAmount = Math.max(0, grandTotal - amountPaid);
@@ -2551,6 +2767,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       orderStatus: order.orderStatus || 'Confirmed',
       sentToProductDate: (order.orderStatus === 'Sent to Product' || order.sentToProductDate) ? (order.sentToProductDate || today) : undefined,
       statusHistory: order.statusHistory || [initialHistory],
+      rawMaterialsDeducted: rawMaterialDeductions.length > 0,
+      rawMaterialsUsed: rawMaterialDeductions.map((d) => ({
+        rawMaterialId: d.rawMaterialId,
+        rawMaterialName: d.rawMaterialName,
+        sku: d.sku || '',
+        quantity: d.quantity,
+        unit: d.unit || 'PCS',
+        previousStock: 0,
+        updatedStock: 0,
+      })),
     };
 
     setSalesOrders((prev) => [newSO, ...prev]);
@@ -2894,10 +3120,38 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const deductionsMap: Record<string, { rawMaterialId: string; rawMaterialName: string; sku?: string; unit?: string; quantity: number }> = {};
 
       for (const item of items) {
+        const orderQty = Number(item.quantity) || 1;
+
+        // 0. Check if the item is DIRECTLY a Raw Material
+        const directRm = rawMaterials.find(
+          (m) =>
+            m.id === item.productId ||
+            m.id === (item as any).rawMaterialId ||
+            (m.sku && (item as any).sku && m.sku.toLowerCase() === (item as any).sku.toLowerCase()) ||
+            m.name.toLowerCase() === item.productName.toLowerCase()
+        );
+
+        if ((item as any).itemType === 'RAW_MATERIAL' || (directRm && !products.some((p) => p.id === item.productId))) {
+          const rmTarget = directRm || rawMaterials.find((m) => m.id === item.productId);
+          if (rmTarget) {
+            if (deductionsMap[rmTarget.id]) {
+              deductionsMap[rmTarget.id].quantity += orderQty;
+            } else {
+              deductionsMap[rmTarget.id] = {
+                rawMaterialId: rmTarget.id,
+                rawMaterialName: rmTarget.name,
+                sku: rmTarget.sku,
+                unit: rmTarget.unit,
+                quantity: orderQty,
+              };
+            }
+            continue;
+          }
+        }
+
         const prod = products.find(
           (p) => p.id === item.productId || p.sku === (item as any).sku || p.name.toLowerCase() === item.productName.toLowerCase()
         );
-        const orderQty = Number(item.quantity) || 1;
 
         // 1. Check ProductMaster.rawMaterialQuantities
         let components: any[] = [];
@@ -3993,6 +4247,52 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    // Deduct raw materials if any are part of the sale order
+    const rmDeductions: Array<{ rawMaterialId: string; rawMaterialName: string; sku?: string; unit?: string; quantity: number }> = [];
+    order.items.forEach((item) => {
+      const isRawMaterial =
+        item.itemType === 'RAW_MATERIAL' ||
+        (order as any).saleType === 'RAW_MATERIAL' ||
+        (order as any).saleType === 'Raw Material' ||
+        rawMaterials.some((rm) => rm.id === item.productId || (item.sku && rm.sku && rm.sku.toLowerCase() === item.sku.toLowerCase()) || rm.id === item.rawMaterialId);
+
+      if (isRawMaterial) {
+        const rm = rawMaterials.find(
+          (m) =>
+            m.id === item.productId ||
+            m.id === item.rawMaterialId ||
+            (m.sku && item.sku && m.sku.toLowerCase() === item.sku.toLowerCase()) ||
+            m.name.toLowerCase() === item.productName.toLowerCase()
+        );
+        if (rm) {
+          rmDeductions.push({
+            rawMaterialId: rm.id,
+            rawMaterialName: rm.name,
+            sku: rm.sku,
+            unit: rm.unit,
+            quantity: item.quantity,
+          });
+        }
+      }
+    });
+
+    if (rmDeductions.length > 0) {
+      setRawMaterials((prev) =>
+        prev.map((rm) => {
+          const d = rmDeductions.find(
+            (x) => x.rawMaterialId === rm.id || (x.sku && rm.sku && x.sku.toLowerCase() === rm.sku.toLowerCase())
+          );
+          return d ? { ...rm, currentStock: Math.max(0, rm.currentStock - d.quantity) } : rm;
+        })
+      );
+
+      fetch('/api/raw-materials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deductions: rmDeductions }),
+      }).catch((err) => console.warn('Failed to sync raw material deductions to DB:', err));
+    }
+
     const unpaidAmount = order.grandTotal - order.amountPaid;
     if (unpaidAmount > 0) {
       setCustomers((prev) =>
@@ -4042,7 +4342,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     const newId = `sup-${Date.now().toString().slice(-4)}`;
-    const newSupplierData = { ...supplier, supplierCode, id: newId };
+    const contactPerson = supplier.contactPerson || supplier.name || 'Accounts / Procurement';
+    const newSupplierData: Supplier = { ...supplier, contactPerson, supplierCode, id: newId };
     setSuppliers((prev) => [...prev, newSupplierData]);
     recordEntityCodeCreated('SUPPLIER', supplierCode);
 
@@ -4051,7 +4352,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSupplierData),
-    }).catch((err) => console.warn('Failed to sync supplier to DB:', err));
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.warn('Failed to sync supplier to DB:', errData);
+        } else {
+          const json = await res.json().catch(() => null);
+          if (json?.data?.id && json.data.id !== newId) {
+            // Update in-memory supplier ID if DB generated a cuid
+            setSuppliers((prev) =>
+              prev.map((s) => (s.id === newId ? { ...s, id: json.data.id } : s))
+            );
+          }
+        }
+      })
+      .catch((err) => console.warn('Failed to sync supplier to DB:', err));
 
     return { success: true, id: newId };
   };
@@ -4068,6 +4384,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSuppliers((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...updated } : item))
     );
+
+    // Persist to Prisma DB API
+    fetch('/api/suppliers', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updated }),
+    }).catch((err) => console.warn('Failed to update supplier in DB:', err));
+
     return { success: true };
   };
 
@@ -4085,6 +4409,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setSuppliers((prev) => prev.filter((item) => item.id !== id));
+
+    // Persist delete to DB
+    fetch(`/api/suppliers?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }).catch((err) => console.warn('Failed to delete supplier in DB:', err));
+
     return { success: true };
   };
 
@@ -5884,6 +6214,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <ERPContext.Provider
       value={{
+        currentUser,
+        setCurrentUser,
+        scopedSalesperson,
         activeRole,
         setActiveRole,
         rawMaterials,

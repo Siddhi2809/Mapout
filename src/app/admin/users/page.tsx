@@ -65,12 +65,30 @@ export default function AdminUsersPage() {
     try {
       const stored = localStorage.getItem('admin_managed_users_v1');
       if (stored) {
-        setUsers(JSON.parse(stored));
+        const parsed: ERPUser[] = JSON.parse(stored);
+        const storedEmails = new Set(parsed.map((u) => (u.email || '').toLowerCase()));
+        const missing = DEMO_CREDENTIALS.filter((u) => !storedEmails.has(u.email.toLowerCase())).map((u, idx) => ({
+          ...u,
+          id: u.id || `usr_gen_${idx + 10}`,
+          status: 'ACTIVE' as const,
+          permissions: {
+            crm: u.role === 'ADMIN' || u.role === 'SALES',
+            sales: u.role === 'ADMIN' || u.role === 'SALES',
+            products: u.role === 'ADMIN' || u.role === 'PRODUCT',
+            rawMaterials: u.role === 'ADMIN' || u.role === 'RAW_MATERIAL',
+            inventory: true,
+            reports: true,
+            adminSettings: u.role === 'ADMIN',
+          },
+        }));
+        const combined = [...parsed, ...missing];
+        setUsers(combined);
+        localStorage.setItem('admin_managed_users_v1', JSON.stringify(combined));
       } else {
         const initial: ERPUser[] = DEMO_CREDENTIALS.map((u, idx) => ({
           ...u,
-          id: `usr_${idx + 1}`,
-          status: 'ACTIVE',
+          id: u.id || `usr_${idx + 1}`,
+          status: 'ACTIVE' as const,
           permissions: {
             crm: u.role === 'ADMIN' || u.role === 'SALES',
             sales: u.role === 'ADMIN' || u.role === 'SALES',
@@ -115,13 +133,14 @@ export default function AdminUsersPage() {
 
     if (editingUser) {
       const updated = users.map((u) =>
-        u.id === editingUser.id ? { ...u, ...formState } : u
+        u.id === editingUser.id ? { ...u, ...formState, isIndividualSales: formState.role === 'SALES' } : u
       );
       saveUsersState(updated);
     } else {
       const newUser: ERPUser = {
         id: `usr_${Date.now()}`,
         ...formState,
+        isIndividualSales: formState.role === 'SALES',
       };
       saveUsersState([newUser, ...users]);
     }
