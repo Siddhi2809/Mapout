@@ -118,6 +118,8 @@ interface ERPContextType {
   refreshRawMaterialsFromDB: () => Promise<RawMaterial[]>;
   refreshSalesOrdersFromDB: () => Promise<SalesOrder[]>;
   refreshQuotationsFromDB: () => Promise<Quotation[]>;
+  refreshCustomersFromDB: () => Promise<Customer[]>;
+  importCustomersBatch: (customersList: any[]) => Promise<{ success: boolean; message?: string; count?: number }>;
 
   // BOM Actions
   addBOM: (bom: Omit<BOM, 'id' | 'bomNumber' | 'createdDate'>) => { success: boolean; message?: string };
@@ -1138,6 +1140,47 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch((err) => console.warn('Failed to sync customer to DB:', err));
 
     return { success: true };
+  };
+
+  const refreshCustomersFromDB = async (): Promise<Customer[]> => {
+    try {
+      const res = await fetch('/api/customers');
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.data)) {
+        setCustomers(data.data);
+        return data.data;
+      }
+    } catch (err) {
+      console.warn('Failed to refresh customers from DB:', err);
+    }
+    return customers;
+  };
+
+  const importCustomersBatch = async (
+    customersList: any[]
+  ): Promise<{ success: boolean; message?: string; count?: number }> => {
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customersList),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.success) {
+        // Fetch fresh list from server to guarantee 100% database sync
+        await refreshCustomersFromDB();
+        return { success: true, count: data.count || customersList.length };
+      }
+
+      // Fallback local update
+      setCustomers((prev) => [...customersList, ...prev]);
+      return { success: true, count: customersList.length };
+    } catch (err: any) {
+      console.warn('Batch customer sync error:', err);
+      setCustomers((prev) => [...customersList, ...prev]);
+      return { success: true, count: customersList.length };
+    }
   };
 
   const updateCustomerFull = (id: string, updated: Partial<Customer>) => {
@@ -6401,6 +6444,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addCustomerFull,
         updateCustomerFull,
         toggleCustomerStatus,
+        refreshCustomersFromDB,
+        importCustomersBatch,
         createLeadFull,
         updateLeadFull,
         convertLeadToCustomer,

@@ -1,10 +1,16 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { SALES_NAV } from '@/lib/nav';
 import { useERP } from '@/context/ERPContext';
 import { Customer } from '@/types/erp';
+import {
+  downloadCustomerExcelTemplate,
+  parseCustomerFile,
+  analyzeCustomersForImport,
+  ParsedCustomerRow,
+} from '@/lib/customerExcel';
 import {
   Users,
   Plus,
@@ -17,6 +23,8 @@ import {
   Edit2,
   Power,
   Download,
+  Upload,
+  FileSpreadsheet,
   Building2,
   Phone,
   Mail,
@@ -33,6 +41,7 @@ import {
 export default function CustomersPage() {
   const {
     customers,
+    quotations,
     salesOrders,
     invoices,
     customerPayments,
@@ -43,6 +52,8 @@ export default function CustomersPage() {
     toggleCustomerStatus,
     generateEntityCode,
     scopedSalesperson,
+    importCustomersBatch,
+    refreshCustomersFromDB,
   } = useERP();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +69,31 @@ export default function CustomersPage() {
   const [isDetailsDrawerOpen, setIsDetailsDrawerOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+  // Import Modal & Wizard State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importStep, setImportStep] = useState<'upload' | 'preview' | 'result'>('upload');
+  const [importFileName, setImportFileName] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [customerAnalysis, setCustomerAnalysis] = useState<{
+    totalRows: number;
+    validCount: number;
+    invalidCount: number;
+    duplicateCount: number;
+    newCount: number;
+    rows: ParsedCustomerRow[];
+  } | null>(null);
+  const [duplicateActions, setDuplicateActions] = useState<Record<number, 'skip' | 'update' | 'asNew'>>({});
+  const [importResult, setImportResult] = useState<{
+    totalRows: number;
+    newCustomers: number;
+    updatedCustomers: number;
+    skipped: number;
+    failed: number;
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Form State
   const [formCustomerCode, setFormCustomerCode] = useState('');
@@ -301,6 +337,159 @@ export default function CustomersPage() {
     setIsFormModalOpen(false);
   };
 
+  // Handle Excel File Selection for Customer Import
+  const handleCustomerFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFileName(file.name);
+    setIsAnalyzing(true);
+    setFormError(null);
+
+    try {
+      const rawRows = await parseCustomerFile(file);
+      const analysis = analyzeCustomersForImport(rawRows, customers);
+      setCustomerAnalysis(analysis);
+
+      // Default duplicate action to skip
+      const actions: Record<number, 'skip' | 'update' | 'asNew'> = {};
+      analysis.rows.forEach((r) => {
+        if (r.isDuplicate) {
+          actions[r.rowNumber] = 'skip';
+        }
+      });
+      setDuplicateActions(actions);
+      setImportStep('preview');
+      setIsImportModalOpen(true);
+    } catch (err: any) {
+      alert(`Error reading customer file: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsAnalyzing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Execute Bulk Customer Import
+  const handleExecuteCustomerImport = async () => {
+    if (!customerAnalysis) return;
+    setIsImporting(true);
+
+    let newCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+
+    const newCustomersPayload: any[] = [];
+    const existingCodes = customers.map((c) => c.customerCode || c.customerNumber).filter(Boolean);
+
+    let seqCounter = 101;
+    existingCodes.forEach((code) => {
+      const match = code?.match(/\d+/);
+      if (match) {
+        const val = parseInt(match[0], 10);
+        if (val >= seqCounter && val <= 999999) seqCounter = val + 1;
+      }
+    });
+
+    for (const r of customerAnalysis.rows) {
+      if (!r.isValid) {
+        failedCount++;
+        continue;
+      }
+
+      if (r.isDuplicate) {
+        const action = duplicateActions[r.rowNumber] || 'skip';
+        if (action === 'skip') {
+          skippedCount++;
+          continue;
+        }
+
+        if (action === 'update') {
+          const matched = customers.find(
+            (c) =>
+              (r.mobile && c.mobile?.replace(/\D/g, '').slice(-10) === r.mobile) ||
+              (r.gstNumber && c.gstNumber?.toUpperCase() === r.gstNumber) ||
+              (r.companyName && (c.companyName || c.name || '').toLowerCase() === r.companyName.toLowerCase())
+          );
+
+          if (matched) {
+            updateCustomerFull(matched.id, {
+              companyName: r.companyName || matched.companyName,
+              name: r.name || matched.name,
+              contactPerson: r.contactPerson || matched.contactPerson,
+              alternateMobile: r.alternateMobile || matched.alternateMobile,
+              email: r.email || matched.email,
+              address: r.address || matched.address,
+              shippingAddress: r.shippingAddress || matched.shippingAddress,
+              city: r.city || matched.city,
+              state: r.state || matched.state,
+              pincode: r.pincode || matched.pincode,
+              paymentTerms: r.paymentTerms || matched.paymentTerms,
+              creditLimit: r.creditLimit || matched.creditLimit,
+              assignedSalesUser: r.assignedSalesUser || matched.assignedSalesUser,
+              customerSource: r.customerSource || matched.customerSource,
+              notes: r.notes || matched.notes,
+            });
+            updatedCount++;
+            continue;
+          }
+        }
+      }
+
+      const generatedCode = `CUS-${seqCounter++}`;
+      const customerObj = {
+        customerCode: generatedCode,
+        customerNumber: generatedCode,
+        companyName: r.companyName || r.name,
+        name: r.name || r.companyName,
+        contactPerson: r.contactPerson || r.name,
+        customerType: r.customerType || 'Distributor',
+        category: r.category || 'Distributor',
+        mobile: r.mobile || '',
+        alternateMobile: r.alternateMobile || '',
+        email: r.email || '',
+        gstNumber: r.gstNumber || '',
+        panNumber: r.panNumber || '',
+        gstType: r.gstType || (r.gstNumber ? 'Regular' : 'Unregistered'),
+        address: r.address || '',
+        shippingAddress: r.shippingAddress || r.address || '',
+        city: r.city || '',
+        state: r.state || '',
+        pincode: r.pincode || '',
+        country: r.country || (r.city || r.state ? 'India' : ''),
+        paymentTerms: r.paymentTerms || '',
+        creditLimit: r.creditLimit || 0,
+        assignedSalesUser: r.assignedSalesUser || '',
+        customerSource: r.customerSource || '',
+        notes: r.notes || '',
+        status: 'ACTIVE' as const,
+        totalOrders: 0,
+        totalSales: 0,
+        totalPaid: 0,
+        totalOutstanding: 0,
+      };
+
+      newCustomersPayload.push(customerObj);
+      newCount++;
+    }
+
+    if (newCustomersPayload.length > 0) {
+      await importCustomersBatch(newCustomersPayload);
+    }
+
+    setImportResult({
+      totalRows: customerAnalysis.totalRows,
+      newCustomers: newCount,
+      updatedCustomers: updatedCount,
+      skipped: skippedCount,
+      failed: failedCount,
+    });
+
+    setImportStep('result');
+    setIsImporting(false);
+    showToast(`Customer import completed: ${newCount} created, ${updatedCount} updated.`);
+  };
+
   const handleExportCSV = () => {
     const headers = ['Customer ID', 'Company Name', 'Customer Name', 'Type', 'Mobile', 'Email', 'GST', 'City', 'Total Sales', 'Outstanding', 'Status'];
     const rows = filteredCustomers.map((c) => [
@@ -364,15 +553,47 @@ export default function CustomersPage() {
           </div>
         )}
 
+        {/* Hidden File Input for Customer Import */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          onChange={handleCustomerFileChange}
+          className="hidden"
+        />
+
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Customers & CRM Accounts</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Customers & CRM Accounts</h1>
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold">
+                {customers.length} Clients
+              </span>
+            </div>
             <p className="text-xs text-slate-500 mt-1">
               Comprehensive B2B customer records, credit terms, sales histories, and client interaction ledger.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={downloadCustomerExcelTemplate}
+              title="Download standardized Excel template for customer import"
+              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+            >
+              <Download className="w-4 h-4 text-slate-600" /> Download Template
+            </button>
+            <button
+              onClick={() => {
+                setImportStep('upload');
+                setCustomerAnalysis(null);
+                setImportResult(null);
+                setIsImportModalOpen(true);
+              }}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 transition shadow-sm"
+            >
+              <Upload className="w-4 h-4" /> Import Customers
+            </button>
             <button
               onClick={handleExportCSV}
               className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-2 transition shadow-sm"
@@ -1070,6 +1291,85 @@ export default function CustomersPage() {
                 </div>
               </div>
 
+              {/* QUOTATIONS HISTORY (Customer -> Multiple Quotations) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-purple-600" /> Quotations History (
+                    {
+                      quotations.filter(
+                        (q) =>
+                          q.customerId === selectedCustomer.id ||
+                          (q.customerName &&
+                            (selectedCustomer.companyName || selectedCustomer.name) &&
+                            q.customerName.toLowerCase().trim() ===
+                              (selectedCustomer.companyName || selectedCustomer.name).toLowerCase().trim())
+                      ).length
+                    }
+                    )
+                  </h4>
+                </div>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                        <th className="p-2">Quotation #</th>
+                        <th className="p-2">Date</th>
+                        <th className="p-2 text-right">Amount</th>
+                        <th className="p-2 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {quotations
+                        .filter(
+                          (q) =>
+                            q.customerId === selectedCustomer.id ||
+                            (q.customerName &&
+                              (selectedCustomer.companyName || selectedCustomer.name) &&
+                              q.customerName.toLowerCase().trim() ===
+                                (selectedCustomer.companyName || selectedCustomer.name).toLowerCase().trim())
+                        )
+                        .map((q) => (
+                          <tr key={q.id} className="hover:bg-slate-50">
+                            <td className="p-2 font-mono text-purple-600 font-bold">{q.quotationNumber}</td>
+                            <td className="p-2 text-slate-600 font-mono">{q.quotationDate}</td>
+                            <td className="p-2 text-right font-bold text-slate-900">
+                              ₹{(q.totalAmount || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td className="p-2 text-center">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  q.status === 'Sent to Production' || q.status === 'Sent to Product'
+                                    ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                    : q.status === 'Confirmed'
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    : 'bg-purple-50 text-purple-700 border-purple-200'
+                                }`}
+                              >
+                                {q.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      {quotations.filter(
+                        (q) =>
+                          q.customerId === selectedCustomer.id ||
+                          (q.customerName &&
+                            (selectedCustomer.companyName || selectedCustomer.name) &&
+                            q.customerName.toLowerCase().trim() ===
+                              (selectedCustomer.companyName || selectedCustomer.name).toLowerCase().trim())
+                      ).length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-4 text-center text-slate-500">
+                            No quotations logged for this customer.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {/* SALES ORDERS HISTORY */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -1148,6 +1448,234 @@ export default function CustomersPage() {
                 >
                   Close Profile
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* CUSTOMER IMPORT MODAL (WIZARD) */}
+        {isImportModalOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !isImporting) setIsImportModalOpen(false);
+            }}
+          >
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden text-slate-900 animate-in fade-in zoom-in-95 duration-150">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Import Customers from Excel / CSV</h3>
+                    <p className="text-xs text-slate-500">
+                      Upload your client accounts list to create or update customers in bulk.
+                    </p>
+                  </div>
+                </div>
+                {!isImporting && (
+                  <button
+                    onClick={() => setIsImportModalOpen(false)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+                {/* Step 1: Upload */}
+                {importStep === 'upload' && (
+                  <div className="space-y-6 text-center py-6">
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50/80 rounded-3xl p-10 cursor-pointer transition flex flex-col items-center justify-center space-y-3 group"
+                    >
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition">
+                        <FileSpreadsheet className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">
+                          {isAnalyzing ? 'Analyzing file...' : 'Click to browse and upload customer file'}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">Supports .xlsx, .xls, and .csv files</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        onClick={downloadCustomerExcelTemplate}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-2 transition"
+                      >
+                        <Download className="w-4 h-4 text-emerald-600" /> Download Sample Customer Template
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Preview & Validation */}
+                {importStep === 'preview' && customerAnalysis && (
+                  <div className="space-y-4">
+                    {/* Summary Badges */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <span className="text-slate-500 block font-semibold">Total Rows</span>
+                        <span className="text-lg font-bold text-slate-900">{customerAnalysis.totalRows}</span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                        <span className="text-emerald-700 block font-semibold">New Valid Clients</span>
+                        <span className="text-lg font-bold text-emerald-800">{customerAnalysis.newCount}</span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <span className="text-amber-700 block font-semibold">Duplicates Found</span>
+                        <span className="text-lg font-bold text-amber-800">{customerAnalysis.duplicateCount}</span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200">
+                        <span className="text-rose-700 block font-semibold">Invalid / Incomplete</span>
+                        <span className="text-lg font-bold text-rose-800">{customerAnalysis.invalidCount}</span>
+                      </div>
+                    </div>
+
+                    {/* Table Preview */}
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-72 overflow-y-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0">
+                          <tr>
+                            <th className="p-2.5">Row</th>
+                            <th className="p-2.5">Company Name</th>
+                            <th className="p-2.5">Contact Person</th>
+                            <th className="p-2.5">Mobile</th>
+                            <th className="p-2.5">GSTIN</th>
+                            <th className="p-2.5">City</th>
+                            <th className="p-2.5 text-center">Status</th>
+                            <th className="p-2.5 text-center">Action if Duplicate</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {customerAnalysis.rows.slice(0, 50).map((r) => (
+                            <tr key={r.rowNumber} className="hover:bg-slate-50">
+                              <td className="p-2.5 font-mono text-slate-500">#{r.rowNumber}</td>
+                              <td className="p-2.5 font-bold text-slate-900">{r.companyName || '-'}</td>
+                              <td className="p-2.5 text-slate-700">{r.name}</td>
+                              <td className="p-2.5 font-mono">{r.mobile}</td>
+                              <td className="p-2.5 font-mono">{r.gstNumber || '-'}</td>
+                              <td className="p-2.5">{r.city}</td>
+                              <td className="p-2.5 text-center">
+                                {!r.isValid ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                                    Invalid
+                                  </span>
+                                ) : r.isDuplicate ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                                    Duplicate
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                    Ready
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                {r.isDuplicate ? (
+                                  <select
+                                    value={duplicateActions[r.rowNumber] || 'skip'}
+                                    onChange={(e) =>
+                                      setDuplicateActions((prev) => ({
+                                        ...prev,
+                                        [r.rowNumber]: e.target.value as any,
+                                      }))
+                                    }
+                                    className="bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none"
+                                  >
+                                    <option value="skip">Skip</option>
+                                    <option value="update">Update Existing</option>
+                                    <option value="asNew">Import as New</option>
+                                  </select>
+                                ) : (
+                                  <span className="text-slate-400 text-[11px]">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: Result */}
+                {importStep === 'result' && importResult && (
+                  <div className="space-y-4 text-center py-6">
+                    <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <h4 className="text-lg font-bold text-slate-900">Import Complete!</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mx-auto">
+                      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                        <span className="text-xs text-emerald-700 block font-semibold">New Created</span>
+                        <span className="text-xl font-bold text-emerald-800">{importResult.newCustomers}</span>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                        <span className="text-xs text-blue-700 block font-semibold">Updated</span>
+                        <span className="text-xl font-bold text-blue-800">{importResult.updatedCustomers}</span>
+                      </div>
+                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                        <span className="text-xs text-amber-700 block font-semibold">Skipped</span>
+                        <span className="text-xl font-bold text-amber-800">{importResult.skipped}</span>
+                      </div>
+                      <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                        <span className="text-xs text-rose-700 block font-semibold">Failed</span>
+                        <span className="text-xl font-bold text-rose-800">{importResult.failed}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
+                {importStep === 'upload' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsImportModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition shadow-xs"
+                  >
+                    Cancel
+                  </button>
+                )}
+
+                {importStep === 'preview' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setImportStep('upload')}
+                      className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition shadow-xs"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isImporting}
+                      onClick={handleExecuteCustomerImport}
+                      className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md shadow-emerald-600/20 flex items-center gap-2"
+                    >
+                      {isImporting ? 'Importing Clients...' : 'Confirm & Import Customers'}
+                    </button>
+                  </>
+                )}
+
+                {importStep === 'result' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsImportModalOpen(false)}
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-md shadow-blue-500/20"
+                  >
+                    Done
+                  </button>
+                )}
               </div>
             </div>
           </div>
