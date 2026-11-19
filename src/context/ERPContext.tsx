@@ -243,8 +243,25 @@ interface ERPContextType {
       updatedBy?: string;
       rawMaterialsDeducted?: boolean;
       rawMaterialsUsed?: any[];
+      productsDeducted?: boolean;
     }
   ) => { success: boolean; message?: string };
+  deductFinishedGoodsForOrder: (
+    orderId: string,
+    orderNumber: string,
+    items: Array<{ productId?: string; productName?: string; sku?: string; quantity: number }>
+  ) => Promise<{
+    success: boolean;
+    deductedList: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      deducted: number;
+      salesCount: number;
+      currentStock: number;
+    }>;
+    message?: string;
+  }>;
   deductRawMaterialsForOrder: (
     orderId: string,
     orderNumber: string,
@@ -350,7 +367,7 @@ interface ERPContextType {
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'SUNYASH_MAPOUT_ERP_STATE_V3';
+const LOCAL_STORAGE_KEY = 'SUNYASH_MAPOUT_ERP_STATE_V4';
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
@@ -405,6 +422,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load saved state from LocalStorage & Next.js Prisma API Backend
   useEffect(() => {
     try {
+      localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE_V3');
       localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE_V2');
       localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE');
       localStorage.removeItem('crm_stock_data');
@@ -1596,9 +1614,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     rows.forEach((row, idx) => {
       const rowNumber = row.rowNumber || idx + 2;
-      const rawLeadName = (row.leadName || row.companyName || row.contactPerson || '').trim();
+      const rawLeadName = (
+        row.leadName ||
+        row.companyName ||
+        row.contactPerson ||
+        (row.mobile ? `Lead ${row.mobile}` : '')
+      ).trim();
 
-      // Rule 3: Minimum Lead Information (Required: Lead Name)
+      // Rule 3: Minimum Lead Information (Required: Lead Name or Company Name or Contact or Mobile)
       if (!rawLeadName) {
         failedRows++;
         failedItems.push({
@@ -2125,7 +2148,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: quotation.notes,
       warrantyPeriod: quotation.warrantyPeriod || '1 Year',
       paymentMode: quotation.paymentMode || 'Prepaid',
-      createdBy: activeRole === 'ADMIN' ? 'Admin' : 'Sales Person',
+      salesperson: quotation.salesperson || (currentUser?.name && currentUser.name !== 'Admin' ? currentUser.name : 'Rajesh Kumar'),
+      createdBy: currentUser?.name || (activeRole === 'ADMIN' ? 'Admin' : 'Sales Person'),
     };
 
     setInvoices((prev) => [newInvoice, ...prev]);
@@ -2926,6 +2950,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedBy?: string;
       rawMaterialsDeducted?: boolean;
       rawMaterialsUsed?: any[];
+      productsDeducted?: boolean;
     }
   ) => {
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -2975,6 +3000,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             batchNumber: data.batchNumber !== undefined ? data.batchNumber : so.batchNumber,
             rawMaterialsDeducted: data.rawMaterialsDeducted !== undefined ? data.rawMaterialsDeducted : so.rawMaterialsDeducted,
             rawMaterialsUsed: data.rawMaterialsUsed !== undefined ? data.rawMaterialsUsed : so.rawMaterialsUsed,
+            productsDeducted: data.productsDeducted !== undefined ? data.productsDeducted : so.productsDeducted,
             items: data.items !== undefined ? data.items : so.items,
             statusHistory: [...(so.statusHistory || []), historyEntry],
           };
@@ -3004,6 +3030,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         serialNumber: data.serialNumber,
         rawMaterialsDeducted: data.rawMaterialsDeducted,
         rawMaterialsUsed: data.rawMaterialsUsed,
+        productsDeducted: data.productsDeducted,
       }),
     })
       .then((r) => r.json())
@@ -3312,6 +3339,99 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, deductedList: [], message: data.message || 'Failed to deduct raw materials.' };
     } catch (err: any) {
       console.error('deductRawMaterialsForOrder error:', err);
+      return { success: false, deductedList: [], message: err.message };
+    }
+  };
+
+  const deductFinishedGoodsForOrder = async (
+    orderId: string,
+    orderNumber: string,
+    items: Array<{ productId?: string; productName?: string; sku?: string; quantity: number }>
+  ) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const deductionsList: Array<{ productId?: string; productName?: string; sku?: string; quantity: number }> = [];
+
+      items.forEach((item) => {
+        const qty = Number(item.quantity) || 0;
+        if (qty > 0) {
+          deductionsList.push({
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: qty,
+          });
+        }
+      });
+
+      if (deductionsList.length === 0) {
+        return { success: true, deductedList: [], message: 'No items to deduct.' };
+      }
+
+      const res = await fetch('/api/products', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deductions: deductionsList }),
+      });
+      const data = await res.json();
+
+      if (data.success && Array.isArray(data.data)) {
+        const results = data.data;
+
+        // Update local products state
+        setProducts((prev) =>
+          prev.map((prod) => {
+            const found = results.find((r: any) => r.id === prod.id || (r.sku && prod.sku && r.sku.toLowerCase() === prod.sku.toLowerCase()));
+            if (found) {
+              return {
+                ...prod,
+                currentStock: found.currentStock,
+                salesCount: (prod.salesCount || 0) + found.deducted,
+              };
+            }
+            return prod;
+          })
+        );
+
+        // Update finished goods mirror state
+        setFinishedGoods((prev) =>
+          prev.map((fg) => {
+            const found = results.find((r: any) => r.id === fg.id || (r.sku && fg.sku && r.sku.toLowerCase() === fg.sku.toLowerCase()));
+            if (found) {
+              return {
+                ...fg,
+                currentStock: found.currentStock,
+              };
+            }
+            return fg;
+          })
+        );
+
+        // Mark sales order as productsDeducted in state and DB
+        setSalesOrders((prev) =>
+          prev.map((so) =>
+            so.id === orderId || so.orderNumber === orderNumber
+              ? { ...so, productsDeducted: true }
+              : so
+          )
+        );
+
+        fetch('/api/sales-orders', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: orderId,
+            orderNumber,
+            productsDeducted: true,
+          }),
+        }).catch(console.warn);
+
+        return { success: true, deductedList: results };
+      }
+
+      return { success: false, deductedList: [], message: data.message || 'Failed to deduct products.' };
+    } catch (err: any) {
+      console.error('deductFinishedGoodsForOrder error:', err);
       return { success: false, deductedList: [], message: err.message };
     }
   };
@@ -4120,6 +4240,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLeadImportHistories([]);
       setDispatches([]);
       setSalesReturns([]);
+      setFollowUps([]);
+      try {
+        localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE_V3');
+        localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE_V4');
+      } catch {}
       return data;
     } catch {
       setCustomers([]);
@@ -4131,6 +4256,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLeadImportHistories([]);
       setDispatches([]);
       setSalesReturns([]);
+      setFollowUps([]);
+      try {
+        localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE_V3');
+        localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE_V4');
+      } catch {}
       return { success: true, message: 'Sales data cleared locally.' };
     }
   };
@@ -4166,6 +4296,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 2. Clear local storage ERP keys
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
+      localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE_V3');
       localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE_V2');
       localStorage.removeItem('SUNYASH_MAPOUT_ERP_STATE');
       localStorage.removeItem('crm_stock_data');
@@ -6338,6 +6469,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatePurchaseRequestStatus,
         updateStockQuantity,
         deductRawMaterialsForOrder,
+        deductFinishedGoodsForOrder,
       }}
     >
       {children}

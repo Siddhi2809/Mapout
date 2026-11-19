@@ -3,9 +3,41 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const products = await prisma.productMaster.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+    const products: any[] = await prisma.$queryRawUnsafe(`
+      SELECT 
+        id,
+        "productCode",
+        sku,
+        name,
+        category,
+        brand,
+        "connectorType",
+        "cableLengthWireSpec",
+        "vehicleScannerCompatibility",
+        subcategory,
+        description,
+        "purchaseCost",
+        "sellingPrice",
+        discount,
+        "gstPercent",
+        "hsnSac",
+        COALESCE("openingStock", 0) as "openingStock",
+        COALESCE("currentStock", 0) as "currentStock",
+        COALESCE("minStock", 0) as "minStock",
+        COALESCE("maxStock", 1000) as "maxStock",
+        COALESCE("returnCount", 0) as "returnCount",
+        COALESCE("onlineSalesCount", 0) as "onlineSalesCount",
+        COALESCE("offlineSalesCount", 0) as "offlineSalesCount",
+        COALESCE("salesCount", 0) as "salesCount",
+        COALESCE("replacementCount", 0) as "replacementCount",
+        status,
+        "imageUrl",
+        "rawMaterialQuantities",
+        "createdAt",
+        "updatedAt"
+      FROM "ProductMaster"
+      ORDER BY "createdAt" DESC
+    `);
 
     // Fetch all BOMs with items to populate rawMaterialQuantities
     const boms = await prisma.bOM.findMany({
@@ -170,6 +202,66 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
+
+    // 1. Handle Batch Deductions (Used when production completes/packs sales orders)
+    if (Array.isArray(body.deductions)) {
+      const results: any[] = [];
+      for (const item of body.deductions) {
+        const itemQty = parseFloat(item.quantity || 0);
+        if (itemQty <= 0) continue;
+
+        const targetId = item.productId || item.id;
+        const targetSku = item.sku;
+        const targetName = item.productName || item.name;
+
+        const prod = await prisma.productMaster.findFirst({
+          where: {
+            OR: [
+              ...(targetId ? [{ id: targetId }] : []),
+              ...(targetId ? [{ sku: targetId }] : []),
+              ...(targetSku ? [{ sku: targetSku }] : []),
+              ...(targetName ? [{ name: targetName }] : []),
+            ],
+          },
+        });
+
+        if (prod) {
+          // Increment salesCount and update currentStock according to: currentStock = openingStock + returnCount - salesCount
+          await prisma.$executeRawUnsafe(
+            `UPDATE "ProductMaster" 
+             SET "salesCount" = COALESCE("salesCount", 0) + $1,
+                 "currentStock" = GREATEST(0, COALESCE("openingStock", 0) + COALESCE("returnCount", 0) - (COALESCE("salesCount", 0) + $1))
+             WHERE id = $2`,
+            itemQty,
+            prod.id
+          );
+
+          const updatedProd: any[] = await prisma.$queryRawUnsafe(
+            `SELECT id, sku, name, "openingStock", "currentStock", "salesCount", "returnCount" 
+             FROM "ProductMaster" WHERE id = $1`,
+            prod.id
+          );
+
+          if (updatedProd && updatedProd.length > 0) {
+            results.push({
+              id: updatedProd[0].id,
+              name: updatedProd[0].name,
+              sku: updatedProd[0].sku,
+              deducted: itemQty,
+              salesCount: updatedProd[0].salesCount,
+              currentStock: updatedProd[0].currentStock,
+            });
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Successfully deducted finished goods product stock for sale.',
+        data: results,
+      });
+    }
+
     const { id, sku, productCode, ...data } = body;
     if (!id && !sku && !productCode) {
       return NextResponse.json({ success: false, message: 'Product ID, SKU, or Product Code is required for update' }, { status: 400 });
@@ -216,6 +308,8 @@ export async function PUT(request: Request) {
         ...(data.hsnSac !== undefined && { hsnSac: data.hsnSac }),
         ...(data.openingStock !== undefined && { openingStock: parseFloat(data.openingStock) }),
         ...(data.currentStock !== undefined && { currentStock: parseFloat(data.currentStock) }),
+        ...(data.salesCount !== undefined && { salesCount: parseFloat(data.salesCount) }),
+        ...(data.returnCount !== undefined && { returnCount: parseFloat(data.returnCount) }),
         ...(data.minStock !== undefined && { minStock: parseFloat(data.minStock) }),
         ...(data.maxStock !== undefined && { maxStock: parseFloat(data.maxStock) }),
         ...(data.status && { status: data.status }),

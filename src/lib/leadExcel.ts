@@ -257,6 +257,8 @@ export function downloadLeadExcelTemplate() {
 
 /**
  * 2. Parse Excel or CSV File
+ * Automatically detects the real header row even if preceded by blank lines,
+ * title banners, or leading empty commas.
  */
 export async function parseLeadFile(file: File): Promise<any[]> {
   const data = await file.arrayBuffer();
@@ -265,9 +267,74 @@ export async function parseLeadFile(file: File): Promise<any[]> {
   const worksheet = workbook.Sheets[firstSheetName];
   if (!worksheet) return [];
 
-  // Parse raw JSON rows with header row
-  const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-  return rawRows;
+  // Parse as 2D array of arrays first to dynamically find the real header row
+  const aoa: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+  if (!aoa || aoa.length === 0) return [];
+
+  const knownHeaderKeywords = [
+    'company',
+    'lead',
+    'name',
+    'mobile',
+    'phone',
+    'contact',
+    'email',
+    'city',
+    'district',
+    'state',
+    'remark',
+    'remarks',
+    'pipeline',
+    'status',
+    'address',
+    'mo .no',
+    'mono',
+    'gst',
+    'pincode',
+  ];
+
+  let headerRowIndex = -1;
+  for (let r = 0; r < Math.min(aoa.length, 25); r++) {
+    const row = aoa[r];
+    if (!Array.isArray(row)) continue;
+    const matchCount = row.filter((cell) => {
+      const str = String(cell || '').trim().toLowerCase();
+      return knownHeaderKeywords.some((kw) => str.includes(kw));
+    }).length;
+
+    if (matchCount >= 2) {
+      headerRowIndex = r;
+      break;
+    }
+  }
+
+  // Fallback: first non-empty row
+  if (headerRowIndex === -1) {
+    headerRowIndex = aoa.findIndex((row) => Array.isArray(row) && row.some((c) => String(c).trim() !== ''));
+    if (headerRowIndex === -1) headerRowIndex = 0;
+  }
+
+  const rawHeaders = aoa[headerRowIndex] || [];
+  const cleanHeaders = rawHeaders.map((h, colIdx) => {
+    const str = String(h || '').trim();
+    return str || `__COLUMN_${colIdx}`;
+  });
+
+  const resultRows: any[] = [];
+  for (let r = headerRowIndex + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!Array.isArray(row)) continue;
+    const hasData = row.some((cell) => String(cell || '').trim() !== '');
+    if (!hasData) continue;
+
+    const rowObj: Record<string, any> = {};
+    cleanHeaders.forEach((header, colIdx) => {
+      rowObj[header] = row[colIdx] !== undefined ? row[colIdx] : '';
+    });
+    resultRows.push(rowObj);
+  }
+
+  return resultRows;
 }
 
 /**
@@ -337,42 +404,70 @@ export function analyzeLeadsForImport(
     const leadName = findValue(row, ['Lead Name', 'Lead', 'Name', 'Contact Name', 'Prospect Name', 'Title']);
     const companyName = findValue(row, ['Company Name', 'Company', 'Organization', 'Firm', 'Account', 'Client Name']);
     const contactPerson = findValue(row, ['Contact Person', 'Person', 'Representative', 'POC', 'Contact']);
-    const mobile = findValue(row, ['Mobile Number', 'Mobile', 'Phone', 'Phone Number', 'Cell', 'Telephone']);
-    const alternateMobile = findValue(row, ['Alternate Mobile', 'Alt Mobile', 'Secondary Phone', 'Phone 2', 'Alternate Phone']);
-    const email = findValue(row, ['Email', 'Email Address', 'Mail', 'E-mail']);
+    const mobile = findValue(row, [
+      'Mobile Number',
+      'Mobile No',
+      'Mobile',
+      'Phone',
+      'Phone Number',
+      'Cell',
+      'Telephone',
+      'Mo .No.',
+      'Mo. No.',
+      'Mo No',
+      'Contact No',
+      'Contact Number',
+    ]);
+    const alternateMobile = findValue(row, [
+      'Alternate Mobile',
+      'Alt Mobile',
+      'Secondary Phone',
+      'Phone 2',
+      'Alternate Phone',
+      'Alt Phone',
+    ]);
+    const email = findValue(row, ['Email', 'Email Address', 'Mail', 'E-mail', 'Email Id']);
     const address = findValue(row, ['Address', 'Street', 'Street Address', 'Location', 'Office Address']);
-    const city = findValue(row, ['City', 'District', 'Town']);
+    const city = findValue(row, ['City', 'District', 'Town', 'Place']);
     const state = findValue(row, ['State', 'Province', 'Region']);
     const pincode = findValue(row, ['Pincode', 'Pin Code', 'Zip', 'Postal Code', 'Zip Code']);
     const gstin = findValue(row, ['GSTIN', 'GST', 'GST Number', 'Tax ID', 'GST No']);
     const industry = findValue(row, ['Industry', 'Sector', 'Business Type', 'Domain']);
-    const source = findValue(row, ['Lead Source', 'Source', 'Channel']) || 'Website';
+    const source = findValue(row, ['Lead Source', 'Source', 'Channel']) || 'Import';
     const salesperson = findValue(row, ['Salesperson', 'Sales Person', 'Assigned User', 'Assigned To', 'Sales Rep', 'Owner']);
     const website = findValue(row, ['Website', 'URL', 'Web', 'Domain Name']);
     const requirement = findValue(row, ['Requirement', 'Interested Product', 'Product', 'Inquiry', 'Needs', 'Product Requirement', 'Description']);
     const rawVal = findValue(row, ['Expected Value', 'Deal Value', 'Value', 'Budget', 'Estimated Value', 'Amount']);
     const expectedValue = parseFloat(rawVal) || 0;
-    const notes = findValue(row, ['Notes', 'Remarks', 'Comments', 'Details', 'Background']);
+    const notes = findValue(row, ['Notes', 'Remarks', 'Remark', 'Comments', 'Details', 'Background', 'Lead Pipeline Status', 'Pipeline Status']);
     const contactDate = findValue(row, ['Contact Date', 'Contacted Date', 'Call Date', 'Date Contacted']);
     const contactTime = findValue(row, ['Contact Time', 'Contacted Time', 'Call Time', 'Time Contacted']);
-    const rawStatus = findValue(row, ['Status', 'Lead Status', 'Stage', 'Current Status']);
+    const rawStatus = findValue(row, ['Status', 'Lead Status', 'Stage', 'Current Status', 'Lead Pipeline Status', 'Pipeline Status', 'Remark', 'Remarks']);
     let rowStatus: LeadStatus = 'Not Contacted';
     if (rawStatus) {
       const sLow = rawStatus.toLowerCase();
-      if (sLow.includes('not contact')) rowStatus = 'Not Contacted';
-      else if (sLow.includes('follow')) rowStatus = 'Follow-up';
-      else if (sLow.includes('contact')) rowStatus = 'Contacted';
-      else if (sLow.includes('interest')) rowStatus = 'Interested';
-      else if (sLow.includes('new')) rowStatus = 'Not Contacted';
-      else if (sLow.includes('quote') || sLow.includes('convert')) rowStatus = 'Interested';
+      if (sLow.includes('not contact') || sLow.includes('call not received') || sLow.includes('not picking') || sLow.includes('busy')) {
+        rowStatus = 'Not Contacted';
+      } else if (sLow.includes('follow') || sLow.includes('call back') || sLow.includes('call cut')) {
+        rowStatus = 'Follow-up';
+      } else if (sLow.includes('catalouge') || sLow.includes('catalogue') || sLow.includes('ctalouge') || sLow.includes('send') || sLow.includes('contacted') || sLow.includes('purchased')) {
+        rowStatus = 'Contacted';
+      } else if (sLow.includes('interest') || sLow.includes('deal') || sLow.includes('quotation') || sLow.includes('convert') || sLow.includes('close')) {
+        rowStatus = 'Interested';
+      } else if (sLow.includes('new')) {
+        rowStatus = 'Not Contacted';
+      }
     }
 
     // Check availability
     const availableFields: string[] = [];
     const missingFields: string[] = [];
 
+    // Fallback effective lead name (e.g. Lead 919571274999 if only phone provided, or Company Name)
+    const effectiveLeadName = leadName || companyName || contactPerson || (mobile ? `Lead ${mobile}` : '');
+
     const leadData: { [k: string]: any } = {
-      leadName,
+      leadName: effectiveLeadName,
       companyName,
       contactPerson,
       mobile,
@@ -404,14 +499,12 @@ export function analyzeLeadsForImport(
       }
     });
 
-    // Minimum identification rule: Must have leadName or contactPerson/companyName
-    const effectiveLeadName = leadName || companyName || contactPerson;
     let isValid = true;
     let validationError: string | undefined = undefined;
 
     if (!effectiveLeadName) {
       isValid = false;
-      validationError = 'Missing Lead Name or identifying name.';
+      validationError = 'Missing Lead Name, Company Name, Contact Person, or Mobile Number.';
     }
 
     // Duplicate detection rules:

@@ -47,6 +47,7 @@ export default function ProductSalesOrdersPage() {
     boms,
     updateSalesOrderProcessing,
     deductRawMaterialsForOrder,
+    deductFinishedGoodsForOrder,
     refreshRawMaterialsFromDB,
     refreshSalesOrdersFromDB,
     activeRole,
@@ -89,7 +90,6 @@ export default function ProductSalesOrdersPage() {
   const [formPackingNotes, setFormPackingNotes] = useState('');
   const [formBatchNumber, setFormBatchNumber] = useState('');
   const [formSerialNumber, setFormSerialNumber] = useState('');
-  const [formWarrantyInfo, setFormWarrantyInfo] = useState('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [autoDeductMaterials, setAutoDeductMaterials] = useState<boolean>(false);
 
@@ -407,7 +407,6 @@ export default function ProductSalesOrdersPage() {
     setFormPackingNotes(order.packingNotes || '');
     setFormBatchNumber(order.batchNumber || `BATCH-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
     setFormSerialNumber(order.serialNumber || `SN-${Date.now().toString().slice(-6)}`);
-    setFormWarrantyInfo(order.warrantyTerms || '1 Year Standard Warranty');
 
     // Collect all existing images
     const existingImgs: string[] = [];
@@ -740,6 +739,31 @@ export default function ProductSalesOrdersPage() {
       mappedOrderStatus = 'Processing';
     }
 
+    // Deduct finished goods product stock when order is packed (final for sale) and not already deducted
+    let productDeductionMessage = '';
+    let productDeducted = Boolean(selectedOrder.productsDeducted);
+    const shouldDeductProducts =
+      !selectedOrder.productsDeducted &&
+      (targetProductionStatus === 'Packed' ||
+        targetProductionStatus === 'Ready for Dispatch' ||
+        targetPackingStatus === 'Packed' ||
+        targetPackingStatus === 'Ready for Dispatch');
+
+    if (shouldDeductProducts) {
+      const prodDeductionRes = await deductFinishedGoodsForOrder(
+        selectedOrder.id,
+        selectedOrder.orderNumber,
+        selectedOrder.items
+      );
+      if (prodDeductionRes.success && prodDeductionRes.deductedList.length > 0) {
+        productDeducted = true;
+        const details = prodDeductionRes.deductedList
+          .map((d) => `${d.name}: -${d.deducted} (Available: ${d.currentStock}, Total Sales: ${d.salesCount})`)
+          .join(', ');
+        productDeductionMessage = ` Finished product stock updated for sale: ${details}.`;
+      }
+    }
+
     const res = updateSalesOrderProcessing(selectedOrder.id, {
       orderStatus: mappedOrderStatus,
       productionStatus: targetProductionStatus,
@@ -754,12 +778,13 @@ export default function ProductSalesOrdersPage() {
       items: updatedItems,
       rawMaterialsDeducted: selectedOrder.rawMaterialsDeducted || (deductedRecords.length > 0),
       rawMaterialsUsed: selectedOrder.rawMaterialsUsed || deductedRecords,
+      productsDeducted: productDeducted,
       updatedBy: activeRole === 'ADMIN' ? 'Product Team Lead' : 'Production Team',
     });
 
     if (res.success) {
       showToast(
-        `✓ Order ${selectedOrder.orderNumber} updated: Production is "${targetProductionStatus}" & Packing is "${targetPackingStatus}".${deductionMessage} Live synced with Database & Sales!`
+        `✓ Order ${selectedOrder.orderNumber} updated: Production is "${targetProductionStatus}" & Packing is "${targetPackingStatus}".${deductionMessage}${productDeductionMessage} Live synced with Database & Sales!`
       );
       setIsProcessModalOpen(false);
     } else {
@@ -1053,13 +1078,18 @@ export default function ProductSalesOrdersPage() {
                             </div>
                           )}
                         </div>
-                        {so.rawMaterialsDeducted && (
-                          <div className="mt-0.5">
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 truncate" title="Raw material components deducted from stock in DB">
-                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" /> Stock Deducted
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {so.rawMaterialsDeducted && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 truncate" title="Raw material components deducted from stock">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-amber-600 shrink-0" /> RM Deducted
                             </span>
-                          </div>
-                        )}
+                          )}
+                          {so.productsDeducted && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 truncate" title="Finished goods deducted from product stock for sale">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" /> FG Sold
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Quantity */}
@@ -1403,7 +1433,7 @@ export default function ProductSalesOrdersPage() {
                   </div>
 
                   {/* Packing Status Selector */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                  <div className="pt-2 border-t border-slate-200">
                     <div>
                       <label className="block text-slate-700 font-bold text-xs mb-1">
                         Specific Packing Stage:
@@ -1418,20 +1448,6 @@ export default function ProductSalesOrdersPage() {
                         <option value="Packed">Packed (All boxes sealed)</option>
                         <option value="Ready for Dispatch">Ready for Dispatch (Labeled & Staged)</option>
                       </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-bold text-xs mb-1 flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Warranty Information:</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formWarrantyInfo}
-                        onChange={(e) => setFormWarrantyInfo(e.target.value)}
-                        placeholder="e.g. 1 Year Comprehensive Onsite Warranty"
-                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-600"
-                      />
                     </div>
                   </div>
 

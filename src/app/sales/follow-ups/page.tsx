@@ -46,6 +46,8 @@ export default function FollowUpsPage() {
     updateFollowUpStatusFull,
     updateQuotationStatus,
     activeRole,
+    currentUser,
+    scopedSalesperson,
   } = useERP();
 
   // Navigation Tabs: 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'CONVERTED' | 'LEADS' | 'ALL'
@@ -168,7 +170,12 @@ export default function FollowUpsPage() {
       followUps.filter((f) => f.type === 'Lead').map((f) => f.leadOrCustomerId)
     );
 
-    leads.forEach((l) => {
+    // If logged in as an individual sales rep, only include leads assigned to them
+    const scopedLeads = scopedSalesperson
+      ? leads.filter((l) => (l.salesperson || l.assignedUser || '').toLowerCase().trim() === scopedSalesperson.toLowerCase().trim())
+      : leads;
+
+    scopedLeads.forEach((l) => {
       const isEligible = l.status === 'Follow-up' || l.status === 'Contacted';
       if (isEligible && !existingLeadIds.has(l.id)) {
         const leadDisplay = l.companyName || l.leadName || 'Lead';
@@ -205,7 +212,7 @@ export default function FollowUpsPage() {
     });
 
     return list;
-  }, [followUps, leads, todayStr]);
+  }, [followUps, leads, todayStr, scopedSalesperson]);
 
   const availableCities = useMemo(() => {
     const citySet = new Set<string>();
@@ -231,6 +238,13 @@ export default function FollowUpsPage() {
       const isFuture = fDate > todayStr;
       const isConverted = f.type === 'Customer' || !!f.convertedCustomerId || !!f.customerNumber;
       const isLead = f.type === 'Lead' && !f.convertedCustomerId;
+
+      // Individual Salesperson Scoping (Strict Data Privacy)
+      if (scopedSalesperson) {
+        const sp = (f.salesperson || f.assignedUser || '').toLowerCase().trim();
+        const myName = scopedSalesperson.toLowerCase().trim();
+        if (sp !== myName) return false;
+      }
 
       // 1. Tab Filtering
       if (activeTab === 'TODAY' && !isToday) return false;
@@ -337,7 +351,14 @@ export default function FollowUpsPage() {
     let convertedCount = 0;
     let leadsCount = 0;
 
-    combinedFollowUps.forEach((f) => {
+    const scopedList = scopedSalesperson
+      ? combinedFollowUps.filter((f) => {
+          const sp = (f.salesperson || f.assignedUser || '').toLowerCase().trim();
+          return sp === scopedSalesperson.toLowerCase().trim();
+        })
+      : combinedFollowUps;
+
+    scopedList.forEach((f) => {
       const fDate = f.followUpDate || '';
       const isPast = fDate < todayStr;
       const isToday = fDate === todayStr;
@@ -352,8 +373,8 @@ export default function FollowUpsPage() {
       if (isLead) leadsCount++;
     });
 
-    return { todayCount, upcomingCount, overdueCount, convertedCount, leadsCount, total: combinedFollowUps.length };
-  }, [combinedFollowUps, todayStr]);
+    return { todayCount, upcomingCount, overdueCount, convertedCount, leadsCount, total: scopedList.length };
+  }, [combinedFollowUps, todayStr, scopedSalesperson]);
 
   // Unique salespersons list for filter
   const salespersons = useMemo(() => {
@@ -373,7 +394,11 @@ export default function FollowUpsPage() {
     setFormFollowUpDate(new Date().toISOString().split('T')[0]);
     setFormFollowUpTime('11:00 AM');
     setFormFollowUpType('Call');
-    setFormSalesperson(activeRole === 'ADMIN' ? 'Administrator' : 'Rajesh Kumar');
+    const defaultUser =
+      scopedSalesperson ||
+      currentUser?.name ||
+      (activeRole === 'ADMIN' ? 'Administrator' : 'Rajesh Kumar');
+    setFormSalesperson(defaultUser);
     setFormNotes('');
     const d = new Date();
     d.setDate(d.getDate() + 3);
@@ -571,6 +596,21 @@ export default function FollowUpsPage() {
             </button>
           </div>
         </div>
+
+        {/* Individual Salesperson Scope Notification */}
+        {scopedSalesperson && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-blue-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+              <span>
+                <strong>Personal Follow-up Pipeline:</strong> Only showing follow-ups assigned to <strong>{scopedSalesperson}</strong> ({filteredFollowUps.length} follow-ups).
+              </span>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-200 text-blue-800">
+              Personal Scope
+            </span>
+          </div>
+        )}
 
         {/* Top KPI Metric Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">

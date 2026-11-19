@@ -292,7 +292,11 @@ export default function LeadsPage() {
     setFormGstin('');
     setFormIndustry('');
     setFormSource('Website');
-    setFormSalesperson(scopedSalesperson || (activeRole === 'ADMIN' ? 'Administrator' : 'Rajesh Kumar'));
+    const defaultUser =
+      scopedSalesperson ||
+      currentUser?.name ||
+      (activeRole === 'ADMIN' ? 'Administrator' : 'Rajesh Kumar');
+    setFormSalesperson(defaultUser);
     setFormWebsite('');
     setFormRequirement('');
     if (products.length > 0) setFormProductId(products[0].id);
@@ -595,7 +599,7 @@ export default function LeadsPage() {
 
       const res = await importLeadsBatch(resolvedRows, {
         fileName: importFileName || 'Leads_Import.xlsx',
-        importedBy: activeRole === 'ADMIN' ? 'Administrator' : 'Sales Person',
+        importedBy: currentUser?.name || (activeRole === 'ADMIN' ? 'Administrator' : 'Sales Person'),
         duplicateHandling: bulkDuplicateAction,
       });
 
@@ -653,7 +657,14 @@ export default function LeadsPage() {
     }
   };
 
-  const pendingFollowups = followUps.filter((f) => f.status === 'Pending');
+  const pendingFollowups = followUps.filter((f) => {
+    if (f.status !== 'Pending') return false;
+    if (scopedSalesperson) {
+      const sp = (f.salesperson || f.assignedUser || '').toLowerCase().trim();
+      return sp === scopedSalesperson.toLowerCase().trim();
+    }
+    return true;
+  });
 
   return (
     <DashboardLayout
@@ -669,11 +680,11 @@ export default function LeadsPage() {
           </div>
         )}
 
-        {/* Hidden File Input for Excel */}
+        {/* Hidden File Input for Excel and CSV */}
         <input
           ref={fileInputRef}
           type="file"
-          accept=".xlsx,.xls"
+          accept=".xlsx,.xls,.csv"
           onChange={handleFileChange}
           className="hidden"
         />
@@ -1420,10 +1431,10 @@ export default function LeadsPage() {
                         <Upload className="w-7 h-7" />
                       </div>
                       <h4 className="font-bold text-slate-800 text-sm">
-                        Click to select Lead Excel file (.xlsx or .xls)
+                        Click to select Lead Excel or CSV file (.xlsx, .xls, .csv)
                       </h4>
                       <p className="text-slate-500 text-xs mt-1">
-                        Upload any Excel sheet containing columns like Lead Name, Company, Mobile, Email, City, etc.
+                        Upload any Excel sheet or CSV containing columns like Lead Name, Company, Mobile, Email, City, etc.
                       </p>
                       <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm group-hover:bg-emerald-700 transition">
                         {isAnalyzing ? (
@@ -1432,7 +1443,7 @@ export default function LeadsPage() {
                           </>
                         ) : (
                           <>
-                            <FileSpreadsheet className="w-4 h-4" /> Browse Excel File
+                            <FileSpreadsheet className="w-4 h-4" /> Browse Excel / CSV File
                           </>
                         )}
                       </div>

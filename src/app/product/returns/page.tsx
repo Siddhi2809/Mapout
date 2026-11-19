@@ -215,53 +215,24 @@ export default function ReturnsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Returns & Replacement (RMA)</h1>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Product Returns</h1>
             <p className="text-xs text-slate-600 mt-1 font-medium">
-              Technical inspection desk for customer product returns, defect diagnosis, warranty claims, repair bench processing, and replacements.
+              Product return counts recorded as per November audit.
             </p>
           </div>
-          <button
-            onClick={handleOpenCreateModal}
-            className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-2 transition shadow-md shadow-blue-500/20"
-          >
-            <Plus className="w-4 h-4" /> Log Return Request (RMA)
-          </button>
         </div>
 
         {/* Filter Bar */}
         <div className="erp-card p-4 flex flex-col md:flex-row gap-4 items-center justify-between bg-white border border-slate-200 shadow-sm rounded-2xl">
-          <div className="relative w-full md:w-80">
+          <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search RMA #, Customer, Invoice, or Product..."
+              placeholder="Search product name..."
               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
             />
-          </div>
-
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-              <Filter className="w-3.5 h-3.5 text-slate-500" /> Status Filter:
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="Requested">Requested</option>
-              <option value="Received">Received</option>
-              <option value="Under Inspection">Under Inspection</option>
-              <option value="Repair Required">Repair Required</option>
-              <option value="Replacement Required">Replacement Required</option>
-              <option value="Repaired">Repaired</option>
-              <option value="Replaced">Replaced</option>
-              <option value="Damaged">Damaged</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Completed">Completed</option>
-            </select>
           </div>
         </div>
 
@@ -271,68 +242,32 @@ export default function ReturnsPage() {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold">
-                  <th className="p-3.5">RMA & Date</th>
-                  <th className="p-3.5">Invoice & Customer</th>
+                  <th className="p-3.5 w-16 text-center">#</th>
                   <th className="p-3.5">Product Name</th>
-                  <th className="p-3.5 text-center">Quantities (Ret / Rep)</th>
-                  <th className="p-3.5">Claim & Reason</th>
-                  <th className="p-3.5">Repair Status</th>
-                  <th className="p-3.5">Final Action & Closing</th>
-                  <th className="p-3.5 text-center">Status</th>
-                  <th className="p-3.5 text-center">Actions</th>
+                  <th className="p-3.5 text-right font-bold text-rose-700">Return Quantity</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredReturns.map((r) => (
+                {filteredReturns.map((r, idx) => (
                   <tr key={r.id} className="hover:bg-slate-50/80 transition">
-                    <td className="p-3.5">
-                      <div className="font-mono text-rose-600 font-bold">{r.returnNumber}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{r.date}</div>
+                    <td className="p-3.5 text-center font-mono text-slate-500 font-medium">
+                      {idx + 1}
                     </td>
-                    <td className="p-3.5 max-w-[170px]">
-                      <div className="font-bold text-slate-900 truncate">{r.customerName}</div>
-                      <div className="text-[11px] text-blue-600 font-mono font-semibold">{r.salesInvoice}</div>
+                    <td className="p-3.5 font-semibold text-slate-900 text-sm">
+                      {r.productName}
                     </td>
-                    <td className="p-3.5 font-medium text-slate-800 max-w-[180px] truncate">{r.productName}</td>
-                    <td className="p-3.5 text-center font-mono">
-                      <span className="font-bold text-rose-700">{r.returnedQuantity ?? r.quantity} Ret</span>
-                      <span className="text-slate-400 mx-1">/</span>
-                      <span className="font-bold text-emerald-700">{r.replacementQuantity ?? 0} Rep</span>
-                    </td>
-                    <td className="p-3.5 max-w-[180px]">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border mb-1 ${getClaimBadge(r.claimType)}`}>
-                        {r.claimType || 'Defective'}
+                    <td className="p-3.5 text-right font-mono">
+                      <span className="inline-block px-3 py-1 rounded-lg bg-rose-50 border border-rose-200 font-extrabold text-rose-700 text-sm">
+                        {r.returnedQuantity ?? r.quantity} Units
                       </span>
-                      <div className="text-slate-600 truncate text-[11px]">{r.returnReason}</div>
-                    </td>
-                    <td className="p-3.5 text-slate-700 max-w-[150px]">
-                      <div className="font-semibold text-[11px] text-slate-900">{r.repairStatus || 'Not Started'}</div>
-                      {r.defect && <div className="text-[10px] text-rose-600 truncate">{r.defect}</div>}
-                    </td>
-                    <td className="p-3.5 max-w-[160px]">
-                      <div className="font-medium text-slate-800 truncate">{r.finalAction || 'Pending Final Action'}</div>
-                      {r.closingDate && <div className="text-[10px] text-slate-400 font-mono">Closed: {r.closingDate}</div>}
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadge(r.status)}`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <button
-                        onClick={() => handleOpenInspectModal(r)}
-                        className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-semibold text-[11px] flex items-center gap-1 mx-auto transition"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> Inspect / Update
-                      </button>
                     </td>
                   </tr>
                 ))}
 
                 {filteredReturns.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="p-12 text-center text-slate-500 text-xs">
-                      No RMA return records found.
+                    <td colSpan={3} className="p-12 text-center text-slate-500 text-xs">
+                      No return records found.
                     </td>
                   </tr>
                 )}

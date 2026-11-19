@@ -666,8 +666,10 @@ export default function ProductsPage() {
                   <th className="p-3.5">Code / SKU</th>
                   <th className="p-3.5">Product Name</th>
                   <th className="p-3.5">Category & Brand</th>
-                  <th className="p-3.5">Raw Material Component Quantities</th>
-                  <th className="p-3.5 text-right">Current Stock</th>
+                  <th className="p-3.5 text-right">Opening (Nov)</th>
+                  <th className="p-3.5 text-right text-emerald-700">Returns</th>
+                  <th className="p-3.5 text-right text-blue-700">Sales</th>
+                  <th className="p-3.5 text-right text-emerald-700 font-bold">Available (Nov)</th>
                   <th className="p-3.5 text-right">Min Stock</th>
                   <th className="p-3.5 text-center">Status</th>
                   <th className="p-3.5 text-center">Actions</th>
@@ -710,27 +712,19 @@ export default function ProductsPage() {
                         <div className="font-medium text-slate-900">{p.category}</div>
                         <div className="text-[10px] text-blue-600 font-bold">{p.brand || 'MapOut24'}</div>
                       </td>
-                      <td className="p-3.5 max-w-[220px]">
-                        {rmQuantities.length > 0 ? (
-                          <div className="space-y-0.5">
-                            {rmQuantities.slice(0, 2).map((rm, idx) => (
-                              <div key={idx} className="text-[11px] text-slate-700 flex items-center justify-between">
-                                <span className="truncate max-w-[130px] font-medium">{rm.rawMaterialName}</span>
-                                <span className="font-bold text-emerald-700 shrink-0 ml-1">
-                                  {rm.quantityUsed} {rm.unit || 'PCS'}
-                                </span>
-                              </div>
-                            ))}
-                            {rmQuantities.length > 2 && (
-                              <div className="text-[9px] text-slate-500 font-mono">+{rmQuantities.length - 2} more materials</div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 font-mono">No component specs set</span>
-                        )}
+                      <td className="p-3.5 text-right font-medium font-mono text-slate-700">
+                        {p.openingStock || 0}
                       </td>
-                      <td className="p-3.5 text-right font-bold text-slate-900 text-sm">
-                        <span className={isLow ? 'text-amber-700 font-extrabold' : 'text-slate-900'}>{p.currentStock}</span>
+                      <td className="p-3.5 text-right font-bold font-mono text-emerald-700">
+                        {p.returnCount && p.returnCount > 0 ? `+${p.returnCount}` : '-'}
+                      </td>
+                      <td className="p-3.5 text-right font-bold font-mono text-blue-700">
+                        {p.salesCount && p.salesCount > 0 ? `-${p.salesCount}` : '0'}
+                      </td>
+                      <td className="p-3.5 text-right font-black font-mono text-emerald-700 text-sm">
+                        <span className={isLow ? 'text-amber-700 font-extrabold' : 'text-emerald-700'}>
+                          {Math.max(0, (Number(p.openingStock) || 0) + (Number(p.returnCount) || 0) - (Number(p.salesCount) || 0))}
+                        </span>
                       </td>
                       <td className="p-3.5 text-right text-slate-600 font-medium">{p.minStock}</td>
                       <td className="p-3.5 text-center">

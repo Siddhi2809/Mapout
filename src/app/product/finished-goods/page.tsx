@@ -55,15 +55,24 @@ export default function FinishedGoodsPage() {
       )
       .reduce((acc: number, po: any) => acc + (po.producedQuantity || po.quantityToProduce || po.plannedQuantity || 0), 0);
 
-    // 2. Sold Stock from Confirmed Sales Orders
-    const soldCount = (salesOrders || [])
+    // 2. Sold Stock from Confirmed Sales Orders + Imported Sheet Sales Count
+    const dbSalesCount = (p as any).salesCount || 0;
+    const dbOnlineSales = (p as any).onlineSalesCount || 0;
+    const dbOfflineSales = (p as any).offlineSalesCount || 0;
+
+    const soldOrdersCount = (salesOrders || [])
       .filter((so: any) => (so.orderStatus || '').toUpperCase() !== 'CANCELLED' && (so.orderStatus || '').toUpperCase() !== 'DRAFT')
       .flatMap((so: any) => so.items || [])
       .filter((i: any) => i.productId === p.id || i.sku === p.sku || i.productName === p.name || i.finishedGoodName === p.name)
       .reduce((acc: number, i: any) => acc + (i.quantity || 0), 0);
 
-    // 3. Returned Stock from Product & Sales Returns (Accepted / Replaced / Repaired)
-    const returnedCount =
+    const soldCount = dbSalesCount > 0 ? dbSalesCount : soldOrdersCount;
+
+    // 3. Returned Stock from Product & Sales Returns + Imported Sheet Return Count
+    const dbReturnCount = (p as any).returnCount || 0;
+    const dbReplacementCount = (p as any).replacementCount || 0;
+
+    const returnedRmaCount =
       (productReturns || [])
         .filter(
           (r: any) =>
@@ -78,6 +87,8 @@ export default function FinishedGoodsPage() {
             ['APPROVED', 'ACCEPTED', 'COMPLETED'].includes((sr.status || '').toUpperCase())
         )
         .reduce((acc: number, sr: any) => acc + (sr.returnQuantity || sr.quantity || 0), 0);
+
+    const returnedCount = dbReturnCount > 0 ? dbReturnCount : returnedRmaCount;
 
     // 4. Damaged Stock from Returns
     const damagedCount = (productReturns || [])
@@ -97,11 +108,8 @@ export default function FinishedGoodsPage() {
       )
       .reduce((acc: number, a: any) => acc + (a.difference || 0), 0);
 
-    // 6. Net Calculated Current Stock
-    const currentStock = Math.max(
-      0,
-      openingStock + producedCount + returnedCount - soldCount - damagedCount + adjustedVal
-    );
+    // 6. Net Available Stock: Opening Stock + Returns - Total Sales
+    const currentStock = Math.max(0, openingStock + returnedCount - soldCount);
 
     const isLow = currentStock <= p.minStock;
 
@@ -110,7 +118,10 @@ export default function FinishedGoodsPage() {
       openingStock,
       producedCount,
       soldCount,
+      onlineSales: dbOnlineSales,
+      offlineSales: dbOfflineSales,
       returnedCount,
+      replacementCount: dbReplacementCount,
       damagedCount,
       adjustedVal,
       currentStock,
@@ -242,9 +253,9 @@ export default function FinishedGoodsPage() {
                 <Calculator className="w-5 h-5 text-blue-400 shrink-0" />
               </div>
               <div>
-                <span className="font-bold text-white uppercase tracking-wider text-[11px]">Dynamic Database Stock Formula</span>
+                <span className="font-bold text-white uppercase tracking-wider text-[11px]">Dynamic Inventory Stock Formula</span>
                 <p className="text-[11px] text-slate-300 font-mono mt-0.5">
-                  Available Stock = Opening Stock + Production + Accepted Returns - Sales - Damaged ± Stock Adjustments
+                  Available Stock = Opening Stock + Returns - Total Sales
                 </p>
               </div>
             </div>
@@ -295,13 +306,13 @@ export default function FinishedGoodsPage() {
                   <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold">
                     <th className="p-3.5">Product Name</th>
                     <th className="p-3.5">SKU / Code</th>
-                    <th className="p-3.5 text-right">Opening</th>
-                    <th className="p-3.5 text-right text-emerald-700">+ Produced</th>
-                    <th className="p-3.5 text-right text-blue-700">- Sold</th>
-                    <th className="p-3.5 text-right text-emerald-700">+ Returned</th>
-                    <th className="p-3.5 text-right text-rose-700">- Damaged</th>
-                    <th className="p-3.5 text-right text-slate-700">± Adjusted</th>
-                    <th className="p-3.5 text-right">Available Stock</th>
+                    <th className="p-3.5 text-right">Opening (Nov)</th>
+                    <th className="p-3.5 text-right text-emerald-700">+ Returns</th>
+                    <th className="p-3.5 text-right text-indigo-700">Online Sales</th>
+                    <th className="p-3.5 text-right text-violet-700">Offline Sales</th>
+                    <th className="p-3.5 text-right text-blue-700">Total Sales</th>
+                    <th className="p-3.5 text-right text-amber-700">Replacements</th>
+                    <th className="p-3.5 text-right">Available (Nov)</th>
                     <th className="p-3.5 text-right">Min Stock</th>
                     <th className="p-3.5 text-center">Status</th>
                   </tr>
@@ -321,19 +332,19 @@ export default function FinishedGoodsPage() {
                           {p.openingStock.toLocaleString('en-IN')}
                         </td>
                         <td className="p-3.5 text-right font-bold font-mono text-emerald-700">
-                          +{p.producedCount.toLocaleString('en-IN')}
+                          {p.returnedCount > 0 ? `+${p.returnedCount}` : '-'}
+                        </td>
+                        <td className="p-3.5 text-right font-medium font-mono text-indigo-700">
+                          {p.onlineSales > 0 ? p.onlineSales : '-'}
+                        </td>
+                        <td className="p-3.5 text-right font-medium font-mono text-violet-700">
+                          {p.offlineSales > 0 ? p.offlineSales : '-'}
                         </td>
                         <td className="p-3.5 text-right font-bold font-mono text-blue-700">
-                          -{p.soldCount.toLocaleString('en-IN')}
+                          {p.soldCount > 0 ? `-${p.soldCount}` : '0'}
                         </td>
-                        <td className="p-3.5 text-right font-bold font-mono text-emerald-700">
-                          +{p.returnedCount.toLocaleString('en-IN')}
-                        </td>
-                        <td className="p-3.5 text-right font-bold font-mono text-rose-700">
-                          -{p.damagedCount.toLocaleString('en-IN')}
-                        </td>
-                        <td className="p-3.5 text-right font-bold font-mono text-slate-700">
-                          {p.adjustedVal >= 0 ? `+${p.adjustedVal}` : p.adjustedVal}
+                        <td className="p-3.5 text-right font-bold font-mono text-amber-700">
+                          {p.replacementCount > 0 ? p.replacementCount : '-'}
                         </td>
                         <td className="p-3.5 text-right font-extrabold text-sm font-mono">
                           <span

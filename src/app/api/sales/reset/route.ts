@@ -30,8 +30,9 @@ export async function POST() {
       deletedCounts.salesDispatches = 0;
     }
 
-    // 4. Delete Sales Returns
+    // 4. Delete Sales Returns and Product Returns
     try {
+      await prisma.productReturn.deleteMany({});
       const sr = await prisma.salesReturn.deleteMany({});
       deletedCounts.salesReturns = sr.count;
     } catch {

@@ -173,7 +173,7 @@ export default function ProductDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-800">
                 <thead>
                   <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50">
@@ -234,7 +234,7 @@ export default function ProductDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-800">
                 <thead>
                   <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50">
@@ -294,7 +294,7 @@ export default function ProductDashboard() {
             </div>
 
             {lowStockProductsList.length > 0 ? (
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                 {lowStockProductsList.map((p) => (
                   <div
                     key={p.id}
@@ -339,7 +339,7 @@ export default function ProductDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-800">
                 <thead>
                   <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50">
@@ -383,7 +383,7 @@ export default function ProductDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-800">
                 <thead>
                   <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50">

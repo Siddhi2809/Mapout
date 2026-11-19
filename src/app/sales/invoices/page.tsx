@@ -42,6 +42,9 @@ import {
   Paperclip,
   Calendar,
   MapPin,
+  Mail,
+  Share2,
+  MessageSquare,
 } from 'lucide-react';
 
 // Indian GST State Codes Reference
@@ -108,6 +111,7 @@ export default function InvoicesPage() {
     uploadCustomerPaymentProof,
     generateEntityCode,
     activeRole,
+    scopedSalesperson,
   } = useERP();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -127,6 +131,117 @@ export default function InvoicesPage() {
   const [paymentTargetInvoice, setPaymentTargetInvoice] = useState<SalesInvoice | null>(null);
   const [proofTargetInvoice, setProofTargetInvoice] = useState<SalesInvoice | null>(null);
   const [selectedSoId, setSelectedSoId] = useState('');
+
+  // Send Invoice Modal State (WhatsApp & Email with PDF instructions)
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [sendTargetInvoice, setSendTargetInvoice] = useState<SalesInvoice | null>(null);
+  const [sendChannel, setSendChannel] = useState<'whatsapp' | 'email'>('email');
+  const [sendRecipientName, setSendRecipientName] = useState('');
+  const [sendPhone, setSendPhone] = useState('');
+  const [sendEmail, setSendEmail] = useState('');
+  const [sendMessageText, setSendMessageText] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  const buildInvoiceMessage = (inv: SalesInvoice, custObj?: any) => {
+    const contactName = custObj?.contactPerson || custObj?.name || inv.customerName || 'Valued Client';
+    const itemsList = (inv.items || [])
+      .map((it, idx) => `${idx + 1}. ${it.productName} (Qty: ${it.quantity} @ ₹${Number(it.rate || (it as any).unitPrice || 0).toLocaleString('en-IN')})`)
+      .join('\n');
+
+    return `Dear ${contactName},\n\nGreetings from SUNYASH MULTI TRADING PVT LTD!\n\nPlease find the Tax Invoice details attached:\n\n🧾 Tax Invoice Ref: ${inv.invoiceNumber}\n📅 Date: ${inv.invoiceDate}\n\n📦 Line Items:\n${itemsList}\n\n💰 Taxable Subtotal: ₹${Number(inv.subtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n🏛️ Total GST: ₹${Number(inv.gstAmount || (inv as any).taxAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n💵 Total Invoice Value: ₹${Number(inv.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n\n📌 Payment Status: ${inv.paymentStatus || 'Payment Pending'}\n\n🏦 Payment Details (ICICI Bank):\nSUNYASH MULTI TRADING PVT LTD\nA/C: 003905001234 | IFSC: ICIC0000039\nUPI ID: sunyash@icici\n\n📄 Note: You can view or save this official Tax Invoice as a PDF by clicking "Save as PDF" / "Print / PDF" in your invoice portal.\n\nSUNYASH MULTI TRADING PVT LTD\nContact: 9503009988\n\nThank you for your business!`;
+  };
+
+  const handleOpenSendInvoiceModal = (inv: SalesInvoice, preferredChannel: 'whatsapp' | 'email' = 'whatsapp') => {
+    const cust = customers.find((c) => c.id === inv.customerId || c.name === inv.customerName || c.companyName === inv.customerName);
+    const phone = cust?.mobile || cust?.phone || (inv as any).customerPhone || '';
+    const email = cust?.email || (inv as any).customerEmail || '';
+    const name = cust?.contactPerson || cust?.name || inv.customerName;
+
+    setSendTargetInvoice(inv);
+    setSendChannel(preferredChannel);
+    setSendRecipientName(name);
+    setSendPhone(phone);
+    setSendEmail(email);
+    setSendMessageText(buildInvoiceMessage(inv, cust));
+    setIsSendModalOpen(true);
+  };
+
+  const handleExecuteSendInvoice = async () => {
+    if (!sendTargetInvoice) return;
+
+    if (sendChannel === 'whatsapp') {
+      let cleanPhone = sendPhone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+      const encodedMsg = encodeURIComponent(sendMessageText);
+      const waUrl = cleanPhone
+        ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`
+        : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+
+      window.open(waUrl, '_blank');
+      showToast('success', `Opening WhatsApp for Invoice ${sendTargetInvoice.invoiceNumber}...`);
+      setIsSendModalOpen(false);
+    } else {
+      // Direct Email with PDF dispatch using server API
+      if (!sendEmail || !sendEmail.includes('@')) {
+        showToast('error', 'Please enter a valid recipient email address.');
+        return;
+      }
+
+      setIsSendingEmail(true);
+      try {
+        const custObj = customers.find(
+          (c) =>
+            c.id === sendTargetInvoice.customerId ||
+            c.name === sendTargetInvoice.customerName ||
+            c.companyName === sendTargetInvoice.customerName
+        );
+
+        // 20 second timeout controller so it never hangs indefinitely
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+        const res = await fetch('/api/invoices/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            type: 'invoice',
+            data: sendTargetInvoice,
+            customer: custObj,
+            recipientEmail: sendEmail,
+            recipientName: sendRecipientName,
+            customMessage: sendMessageText,
+          }),
+        });
+
+        clearTimeout(timeoutId);
+        const result = await res.json();
+        if (result.success) {
+          showToast('success', `✓ Direct Tax Invoice PDF sent to ${sendEmail}!`);
+          setIsSendModalOpen(false);
+        } else {
+          showToast('error', result.message || 'Failed to send invoice email.');
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          showToast('error', 'Request timed out after 20 seconds. Please check server connection.');
+        } else {
+          showToast('error', err.message || 'Network error sending invoice email.');
+        }
+      } finally {
+        setIsSendingEmail(false);
+      }
+    }
+  };
+
+  const handleQuickDownloadPdf = (inv: SalesInvoice) => {
+    setSelectedInvoice(inv);
+    setActiveViewTab('invoice');
+    setIsViewModalOpen(true);
+    setTimeout(() => {
+      window.print();
+    }, 400);
+  };
 
   // Payment Proof Upload Form State
   const [proofType, setProofType] = useState<string>('Payment Screenshot');
@@ -182,6 +297,26 @@ export default function InvoicesPage() {
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
+      // Individual Salesperson Scoping
+      if (scopedSalesperson) {
+        const myName = scopedSalesperson.toLowerCase().trim();
+        // Check invoice salesperson, or linked quotation's salesperson, or linked customer's assignedSalesUser
+        const invSalesperson = (inv.salesperson || (inv as any).createdBy || '').toLowerCase().trim();
+        const linkedQuote = quotations.find((q) => q.id === inv.quotationId || (inv.quotationNumber && q.quotationNumber === inv.quotationNumber));
+        const quoteSalesperson = (linkedQuote?.salesperson || '').toLowerCase().trim();
+        const cust = customers.find((c) => c.id === inv.customerId);
+        const custSalesperson = (cust?.assignedSalesUser || '').toLowerCase().trim();
+
+        const matchesUser =
+          invSalesperson === myName ||
+          quoteSalesperson === myName ||
+          custSalesperson === myName;
+
+        if (!matchesUser) {
+          return false;
+        }
+      }
+
       const matchSearch =
         inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
         inv.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -214,19 +349,20 @@ export default function InvoicesPage() {
 
       return matchSearch && matchPayment && matchProd && matchStartDate && matchEndDate && matchCity;
     });
-  }, [invoices, searchQuery, paymentFilter, productionFilter, startDate, endDate, cityFilter, customers, salesOrders]);
+  }, [invoices, searchQuery, paymentFilter, productionFilter, startDate, endDate, cityFilter, customers, salesOrders, quotations, scopedSalesperson]);
 
   // Invoice Statistics
   const stats = useMemo(() => {
-    const total = invoices.length;
-    const paid = invoices.filter((i) => i.paymentStatus === 'Paid' || i.invoiceStatus === 'Payment Completed').length;
-    const pendingPayment = invoices.filter((i) => i.paymentStatus !== 'Paid' && i.invoiceStatus !== 'Payment Completed').length;
-    const sentToProduction = invoices.filter((i) => {
+    const list = scopedSalesperson ? filteredInvoices : invoices;
+    const total = list.length;
+    const paid = list.filter((i) => i.paymentStatus === 'Paid' || i.invoiceStatus === 'Payment Completed').length;
+    const pendingPayment = list.filter((i) => i.paymentStatus !== 'Paid' && i.invoiceStatus !== 'Payment Completed').length;
+    const sentToProduction = list.filter((i) => {
       const linked = getLinkedOrder(i);
       return i.productionStatus === 'Sent to Production' || linked?.orderStatus === 'Sent to Production' || linked?.productionStatus === 'Sent to Production';
     }).length;
     return { total, paid, pendingPayment, sentToProduction };
-  }, [invoices, salesOrders]);
+  }, [invoices, salesOrders, scopedSalesperson, filteredInvoices]);
 
   const handleOpenViewModal = (inv: SalesInvoice) => {
     setSelectedInvoice(inv);
@@ -587,6 +723,29 @@ export default function InvoicesPage() {
           </div>
         </div> */}
 
+        {/* Salesperson Scoped View Banner */}
+        {scopedSalesperson && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs text-blue-900 font-medium">
+                  <strong>Personal Invoice Ledger:</strong> Displaying invoices created by or assigned to{' '}
+                  <strong>{scopedSalesperson}</strong> ({filteredInvoices.length} invoices).
+                </p>
+                <p className="text-[11px] text-blue-600 mt-0.5">
+                  General Sales Manager & Admins view all invoices across the entire sales department.
+                </p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-wider">
+              Scoped Sales Rep
+            </span>
+          </div>
+        )}
+
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -869,6 +1028,26 @@ export default function InvoicesPage() {
                               <span>Proof</span>
                             </button>
                           )}
+
+                          {/* Send via WhatsApp / Email */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSendInvoiceModal(inv, 'whatsapp')}
+                            className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition cursor-pointer shrink-0"
+                            title="Send Invoice via WhatsApp / Email (PDF format)"
+                          >
+                            <Share2 className="w-3 h-3" />
+                          </button>
+
+                          {/* Quick Download / Print PDF */}
+                          <button
+                            type="button"
+                            onClick={() => handleQuickDownloadPdf(inv)}
+                            className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer shrink-0"
+                            title="Save / Download as PDF"
+                          >
+                            <Download className="w-3 h-3 text-slate-600" />
+                          </button>
 
                           <button
                             onClick={() => handleOpenViewModal(inv)}
@@ -1352,6 +1531,26 @@ export default function InvoicesPage() {
                         <span>Send to Production</span>
                       </button>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSendInvoiceModal(selectedInvoice, 'whatsapp')}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                      title="Send Invoice via WhatsApp"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-white" />
+                      <span>WhatsApp</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSendInvoiceModal(selectedInvoice, 'email')}
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                      title="Send Invoice via Email"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-white" />
+                      <span>Email</span>
+                    </button>
 
                     <button
                       type="button"
@@ -2349,7 +2548,399 @@ export default function InvoicesPage() {
           </div>
         )}
 
+        {/* SEND INVOICE MODAL (WhatsApp & Email with PDF instructions) */}
+        {isSendModalOpen && sendTargetInvoice && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white ${sendChannel === 'whatsapp' ? 'bg-emerald-600' : 'bg-blue-600'}`}>
+                    {sendChannel === 'whatsapp' ? <MessageSquare className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Send Tax Invoice {sendTargetInvoice.invoiceNumber}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Recipient: <strong>{sendRecipientName || sendTargetInvoice.customerName}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSendModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-xs">
+                {/* Method selector */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Select Sending Method</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('whatsapp')}
+                      className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold cursor-pointer transition ${
+                        sendChannel === 'whatsapp'
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs ring-2 ring-emerald-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4 text-emerald-600" />
+                      <span>WhatsApp (Attach PDF)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('email')}
+                      className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold cursor-pointer transition ${
+                        sendChannel === 'email'
+                          ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-xs ring-2 ring-blue-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Mail className="w-4 h-4 text-blue-600" />
+                      <span>Email (Attach PDF)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mode Indicator Banner */}
+                {sendChannel === 'email' ? (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                        <span>Direct Server Email Dispatch</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-600 text-white font-semibold">Automatic PDF</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                        The official Tax Invoice PDF will be automatically generated and attached to the email sent directly to the client. No manual download or attachment is required!
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-slate-900 text-xs">
+                        WhatsApp Message & PDF
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                        Opens WhatsApp with complete tax invoice breakdown & bank account details. If needed, you can save a local PDF copy below:
+                      </p>
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleQuickDownloadPdf(sendTargetInvoice)}
+                          className="px-3.5 py-1.5 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-100/50 text-slate-800 font-bold text-[11px] inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Save PDF Copy</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recipient Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {sendChannel === 'whatsapp' ? 'WhatsApp Phone (10 digits)' : 'Phone Number'}
+                    </label>
+                    <input
+                      type="text"
+                      value={sendPhone}
+                      onChange={(e) => setSendPhone(e.target.value)}
+                      placeholder="e.g. 9840122334"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Recipient Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={sendEmail}
+                      onChange={(e) => setSendEmail(e.target.value)}
+                      placeholder="e.g. client@example.com"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Message text */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      Step 2: Accompanying Message with Bank Details (Editable)
+                    </label>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={sendMessageText}
+                    onChange={(e) => setSendMessageText(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-[11px] font-mono leading-relaxed text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none resize-none"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="pt-3 flex items-center justify-between border-t border-slate-200">
+                  <span className="text-[11px] text-slate-500">
+                    {sendChannel === 'whatsapp'
+                      ? 'Opens WhatsApp with payment details prefilled'
+                      : 'Sends email directly with official Tax Invoice PDF attached'}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSendingEmail}
+                      onClick={() => setIsSendModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSendingEmail}
+                      onClick={handleExecuteSendInvoice}
+                      className={`px-5 py-2 rounded-xl text-white font-bold text-xs shadow-md cursor-pointer flex items-center gap-1.5 transition disabled:opacity-60 ${
+                        sendChannel === 'whatsapp'
+                          ? 'bg-emerald-600 hover:bg-emerald-700'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {isSendingEmail ? (
+                        <>
+                          <Clock className="w-3.5 h-3.5 animate-spin" />
+                          <span>Sending PDF Email...</span>
+                        </>
+                      ) : sendChannel === 'whatsapp' ? (
+                        <>
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Send WhatsApp</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Send Email with PDF</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* FULL IMAGE PREVIEW MODAL */}
+
+        {/* SEND INVOICE MODAL (WhatsApp & Email with PDF instructions) */}
+        {isSendModalOpen && sendTargetInvoice && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white ${sendChannel === 'whatsapp' ? 'bg-emerald-600' : 'bg-blue-600'}`}>
+                    {sendChannel === 'whatsapp' ? <MessageSquare className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Send Tax Invoice {sendTargetInvoice.invoiceNumber}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Recipient: <strong>{sendRecipientName || sendTargetInvoice.customerName}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSendModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-xs">
+                {/* Method selector */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Select Sending Method</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('whatsapp')}
+                      className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold cursor-pointer transition ${
+                        sendChannel === 'whatsapp'
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs ring-2 ring-emerald-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4 text-emerald-600" />
+                      <span>WhatsApp (Attach PDF)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('email')}
+                      className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold cursor-pointer transition ${
+                        sendChannel === 'email'
+                          ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-xs ring-2 ring-blue-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Mail className="w-4 h-4 text-blue-600" />
+                      <span>Email (Attach PDF)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mode Indicator Banner */}
+                {sendChannel === 'email' ? (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                        <span>Direct Server Email Dispatch</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-600 text-white font-semibold">Automatic PDF</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                        The official Tax Invoice PDF will be automatically generated and attached to the email sent directly to the client. No manual download or attachment is required!
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-slate-900 text-xs">
+                        WhatsApp Message & PDF
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                        Opens WhatsApp with complete tax invoice breakdown & bank account details. If needed, you can save a local PDF copy below:
+                      </p>
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleQuickDownloadPdf(sendTargetInvoice)}
+                          className="px-3.5 py-1.5 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-100/50 text-slate-800 font-bold text-[11px] inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Save PDF Copy</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recipient Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {sendChannel === 'whatsapp' ? 'WhatsApp Phone (10 digits)' : 'Phone Number'}
+                    </label>
+                    <input
+                      type="text"
+                      value={sendPhone}
+                      onChange={(e) => setSendPhone(e.target.value)}
+                      placeholder="e.g. 9840122334"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Recipient Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={sendEmail}
+                      onChange={(e) => setSendEmail(e.target.value)}
+                      placeholder="e.g. client@example.com"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Message text */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      Step 2: Accompanying Message with Bank Details (Editable)
+                    </label>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={sendMessageText}
+                    onChange={(e) => setSendMessageText(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-[11px] font-mono leading-relaxed text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none resize-none"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="pt-3 flex items-center justify-between border-t border-slate-200">
+                  <span className="text-[11px] text-slate-500">
+                    {sendChannel === 'whatsapp'
+                      ? 'Opens WhatsApp with payment details prefilled'
+                      : 'Sends email directly with official Tax Invoice PDF attached'}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSendingEmail}
+                      onClick={() => setIsSendModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSendingEmail}
+                      onClick={handleExecuteSendInvoice}
+                      className={`px-5 py-2 rounded-xl text-white font-bold text-xs shadow-md cursor-pointer flex items-center gap-1.5 transition disabled:opacity-60 ${
+                        sendChannel === 'whatsapp'
+                          ? 'bg-emerald-600 hover:bg-emerald-700'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {isSendingEmail ? (
+                        <>
+                          <Clock className="w-3.5 h-3.5 animate-spin" />
+                          <span>Sending PDF Email...</span>
+                        </>
+                      ) : sendChannel === 'whatsapp' ? (
+                        <>
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Send WhatsApp</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Send Email with PDF</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* FULL IMAGE PREVIEW MODAL */}
         {previewImageUrl && (

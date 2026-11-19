@@ -732,6 +732,7 @@ export interface SalesOrder {
   warrantyTerms?: string;
   warrantyPeriod?: string;
   rawMaterialsDeducted?: boolean;
+  productsDeducted?: boolean;
   rawMaterialsUsed?: Array<{
     rawMaterialId: string;
     rawMaterialName: string;
@@ -977,9 +978,14 @@ export interface ProductMaster {
   gstPercent: number;
   hsnSac?: string;
   openingStock: number;
-  currentStock: number; // Current stock
+  currentStock: number; // Current stock (Available in Nov)
   minStock: number; // Minimum stock level
   maxStock: number;
+  returnCount?: number; // Total returns count
+  onlineSalesCount?: number; // Online sales count
+  offlineSalesCount?: number; // Offline sales count
+  salesCount?: number; // Total sales count (online + offline)
+  replacementCount?: number; // Replacements count
   status: 'ACTIVE' | 'INACTIVE';
   imageUrl?: string; // Product image
   compatibility?: CompatibilityItem[];

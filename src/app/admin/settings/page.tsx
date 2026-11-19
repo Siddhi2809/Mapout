@@ -19,7 +19,7 @@ import {
 import { useERP } from '@/context/ERPContext';
 
 export default function AdminSettingsPage() {
-  const { clearAllSystemData } = useERP();
+  const { clearAllSystemData, clearAllSalesData } = useERP();
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
@@ -91,6 +91,27 @@ export default function AdminSettingsPage() {
       }, 1500);
     } catch (err: any) {
       alert('Error resetting data: ' + (err.message || 'Unknown error'));
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleResetSalesData = async () => {
+    const confirmed = window.confirm(
+      '⚠️ ARE YOU SURE?\n\nThis will completely delete ALL Sales-side data from both the database and local memory:\n- All Customers\n- All Leads & Follow-ups\n- All Quotations\n- All Sales Orders\n- All Sales Invoices & Customer Payments\n- All Sales Dispatches & Returns\n\nRaw Materials, Suppliers, Products, and BOMs will NOT be affected.\nThis action CANNOT be undone!'
+    );
+    if (!confirmed) return;
+
+    setResetting(true);
+    setResetSuccess(null);
+    try {
+      const res = await clearAllSalesData();
+      setResetSuccess(res?.message || 'All Sales data has been deleted from database. Ready for fresh sales data entry.');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err: any) {
+      alert('Error deleting sales data: ' + (err.message || 'Unknown error'));
     } finally {
       setResetting(false);
     }
@@ -307,7 +328,54 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
-        {/* 4. Clean Slate / Reset All Data */}
+        {/* 4. Reset Sales Side Data Only */}
+        <div className="bg-white p-6 rounded-3xl border border-amber-200 shadow-2xs space-y-4">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-amber-100">
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-amber-900 text-sm">Reset Sales Side Data</h3>
+              <p className="text-xs text-amber-600">
+                Wipe only sales records (Customers, Leads, Quotations, Sales Orders, Invoices, Payments, Dispatches, Returns) from database and memory.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+            <div className="space-y-1">
+              <div className="font-bold text-amber-900 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Delete All Sales Records (Keep Raw Materials & Products Intact)</span>
+              </div>
+              <p className="text-[11px] text-amber-700 leading-relaxed max-w-xl">
+                Deletes all Customer records, Leads, Quotations, Sales Orders, Sales Invoices, Customer Payments, Dispatches, and Sales Returns from the database.
+                Raw Materials, Suppliers, Products, and BOMs remain completely untouched.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={resetting}
+              onClick={handleResetSalesData}
+              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs shrink-0 flex items-center gap-2 shadow-sm transition cursor-pointer"
+            >
+              {resetting ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Clearing Sales Data...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Wipe Sales Data Only</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* 5. Clean Slate / Reset All Data */}
         <div className="bg-white p-6 rounded-3xl border border-rose-200 shadow-2xs space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-rose-100">
             <div className="p-2 rounded-xl bg-rose-50 text-rose-600">

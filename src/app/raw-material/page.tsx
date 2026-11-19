@@ -194,7 +194,7 @@ export default function RawMaterialDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
                   <tr>
@@ -301,7 +301,7 @@ export default function RawMaterialDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-100/80 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
@@ -357,7 +357,7 @@ export default function RawMaterialDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-100/80 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
@@ -399,7 +399,7 @@ export default function RawMaterialDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-100/80 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
@@ -441,7 +441,7 @@ export default function RawMaterialDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-100/80 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>

@@ -493,10 +493,10 @@ export default function SalesDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs table-fixed">
                 <thead>
-                  <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider">
+                  <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider sticky top-0 z-10">
                     <th className="py-2.5 px-3 w-[22%]">Order #</th>
                     <th className="py-2.5 px-3 w-[30%]">Customer</th>
                     <th className="py-2.5 px-2 w-[20%]">Date</th>
@@ -546,10 +546,10 @@ export default function SalesDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs table-fixed">
                 <thead>
-                  <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider">
+                  <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider sticky top-0 z-10">
                     <th className="py-2.5 px-3 w-[25%]">Order / Ref</th>
                     <th className="py-2.5 px-3 w-[35%]">Customer</th>
                     <th className="py-2.5 px-2 text-center w-[20%]">Status</th>
@@ -627,7 +627,7 @@ export default function SalesDashboard() {
             </div>
 
             {overdueInvoices.length > 0 ? (
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                 {overdueInvoices.slice(0, 4).map((inv) => {
                   const pendingBal = inv.outstandingAmount !== undefined ? inv.outstandingAmount : (inv.grandTotal - (inv.paidAmount || 0));
                   return (
@@ -673,10 +673,10 @@ export default function SalesDashboard() {
               <span className="text-[10px] text-slate-500 font-mono font-medium">By Revenue</span>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs table-fixed">
                 <thead>
-                  <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider">
+                  <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider sticky top-0 z-10">
                     <th className="py-2.5 px-3 w-[25%]">SKU</th>
                     <th className="py-2.5 px-3 w-[35%]">Product Name</th>
                     <th className="py-2.5 px-2 text-right w-[15%]">Qty</th>
@@ -721,10 +721,10 @@ export default function SalesDashboard() {
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-56 overflow-y-auto pr-1">
               <table className="w-full text-left text-xs table-fixed">
                 <thead>
-                  <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider">
+                  <tr className="text-slate-700 font-bold border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider sticky top-0 z-10">
                     <th className="py-2.5 px-3 w-[15%]">Customer Code</th>
                     <th className="py-2.5 px-3 w-[25%]">Company / Client</th>
                     <th className="py-2.5 px-3 w-[15%]">City</th>

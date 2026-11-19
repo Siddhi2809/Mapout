@@ -42,6 +42,9 @@ import {
   Check,
   HandCoins,
   CreditCard,
+  Mail,
+  Share2,
+  Download,
 } from 'lucide-react';
 
 export default function QuotationsPage() {
@@ -92,6 +95,123 @@ export default function QuotationsPage() {
   // Searchable Customer Selector State
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [isCustomerSelectorOpen, setIsCustomerSelectorOpen] = useState(false);
+
+  // Send Quotation Modal State (Email & WhatsApp)
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [sendTargetQuote, setSendTargetQuote] = useState<Quotation | null>(null);
+  const [sendChannel, setSendChannel] = useState<'whatsapp' | 'email'>('email');
+  const [sendRecipientName, setSendRecipientName] = useState('');
+  const [sendPhone, setSendPhone] = useState('');
+  const [sendEmail, setSendEmail] = useState('');
+  const [sendMessageText, setSendMessageText] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  const buildQuotationMessage = (quote: Quotation, custObj?: any) => {
+    const contactName = custObj?.contactPerson || custObj?.name || quote.customerName || 'Valued Client';
+    const itemsList = (quote.items || [])
+      .map((it, idx) => `${idx + 1}. ${it.productName} (Qty: ${it.quantity} @ ₹${Number(it.rate || it.unitPrice || 0).toLocaleString('en-IN')})`)
+      .join('\n');
+
+    return `Dear ${contactName},\n\nGreetings from SUNYASH MULTI TRADING PVT LTD!\n\nPlease find the quotation details as requested:\n\n📄 Quotation Ref: ${quote.quotationNumber}\n📅 Date: ${quote.quotationDate}\n⏳ Valid Until: ${quote.validUntil}\n\n📦 Items Quoted:\n${itemsList}\n\n💰 Subtotal: ₹${Number(quote.subtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n🚚 Freight: ₹${Number(quote.freightCharges || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n🏛️ GST (18%): ₹${Number(quote.taxAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n💵 Grand Total: ₹${Number(quote.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n\n🛡️ Warranty: ${quote.warrantyPeriod || '1 Year'}\n💳 Payment Mode: ${quote.paymentMode || 'Prepaid'} (100% Advance)\n\nPrepared by: ${quote.salesperson || 'Sales Team'}\nSUNYASH MULTI TRADING PVT LTD\nContact: 9503009988\n\nPlease reply to confirm your order or let us know if any modifications are needed.`;
+  };
+
+  const handleOpenSendModal = (quote: Quotation, preferredChannel: 'whatsapp' | 'email' = 'whatsapp') => {
+    const cust = customers.find((c) => c.id === quote.customerId || c.name === quote.customerName || c.companyName === quote.customerName);
+    const phone = cust?.mobile || cust?.phone || '';
+    const email = cust?.email || '';
+    const name = cust?.contactPerson || cust?.name || quote.customerName;
+
+    setSendTargetQuote(quote);
+    setSendChannel(preferredChannel);
+    setSendRecipientName(name);
+    setSendPhone(phone);
+    setSendEmail(email);
+    setSendMessageText(buildQuotationMessage(quote, cust));
+    setIsSendModalOpen(true);
+  };
+
+  const handleExecuteSend = async () => {
+    if (!sendTargetQuote) return;
+
+    if (sendChannel === 'whatsapp') {
+      let cleanPhone = sendPhone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+      const encodedMsg = encodeURIComponent(sendMessageText);
+      const waUrl = cleanPhone
+        ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`
+        : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+
+      window.open(waUrl, '_blank');
+      showNotification('success', `Opening WhatsApp for Quotation ${sendTargetQuote.quotationNumber}...`);
+
+      if (sendTargetQuote.status === 'Draft') {
+        updateQuotationStatus(sendTargetQuote.id, 'Sent to Customer');
+      }
+      setIsSendModalOpen(false);
+    } else {
+      // Direct Email with PDF dispatch using server API
+      if (!sendEmail || !sendEmail.includes('@')) {
+        showNotification('error', 'Please enter a valid recipient email address.');
+        return;
+      }
+
+      setIsSendingEmail(true);
+      try {
+        const custObj = customers.find(
+          (c) =>
+            c.id === sendTargetQuote.customerId ||
+            c.name === sendTargetQuote.customerName ||
+            c.companyName === sendTargetQuote.customerName
+        );
+
+        // 20 second timeout controller so it never hangs indefinitely
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+        const res = await fetch('/api/quotations/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            type: 'quotation',
+            data: sendTargetQuote,
+            customer: custObj,
+            recipientEmail: sendEmail,
+            recipientName: sendRecipientName,
+            customMessage: sendMessageText,
+          }),
+        });
+
+        clearTimeout(timeoutId);
+        const result = await res.json();
+        if (result.success) {
+          showNotification('success', `✓ Direct PDF Email sent to ${sendEmail}!`);
+          if (sendTargetQuote.status === 'Draft') {
+            updateQuotationStatus(sendTargetQuote.id, 'Sent to Customer');
+          }
+          setIsSendModalOpen(false);
+        } else {
+          showNotification('error', result.message || 'Failed to send email with PDF.');
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          showNotification('error', 'Request timed out after 20 seconds. Please check server connection.');
+        } else {
+          showNotification('error', err.message || 'Network error sending email.');
+        }
+      } finally {
+        setIsSendingEmail(false);
+      }
+    }
+  };
+
+  const handleQuickDownloadPdf = (quote: Quotation) => {
+    setSelectedQuotation(quote);
+    setIsViewModalOpen(true);
+    setTimeout(() => {
+      window.print();
+    }, 400);
+  };
 
   // Quick Follow-up Modal State
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
@@ -1151,11 +1271,12 @@ export default function QuotationsPage() {
                           ) : q.status === 'Draft' ? (
                             <button
                               type="button"
-                              onClick={() => updateQuotationStatus(q.id, 'Sent to Customer')}
-                              className="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition cursor-pointer whitespace-nowrap"
-                              title="Send Quotation to Customer"
+                              onClick={() => handleOpenSendModal(q, 'whatsapp')}
+                              className="px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] border border-emerald-300 transition cursor-pointer whitespace-nowrap flex items-center gap-1 mx-auto"
+                              title="Send Quotation via WhatsApp / Email"
                             >
-                              Send
+                              <Send className="w-2.5 h-2.5" />
+                              <span>Send</span>
                             </button>
                           ) : q.status === 'Sent to Customer' || q.status === 'Sent to Client' || q.status === 'Follow-up Required' ? (
                             <div className="flex items-center justify-center gap-0.5">
@@ -1230,6 +1351,26 @@ export default function QuotationsPage() {
                         {/* Action buttons */}
                         <td className="py-2.5 px-1 text-center align-middle">
                           <div className="flex items-center justify-center gap-1">
+                            {/* Send via WhatsApp / Email Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSendModal(q, 'whatsapp')}
+                              className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition cursor-pointer"
+                              title="Send Quotation via WhatsApp or Email"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Quick Download / Print PDF */}
+                            <button
+                              type="button"
+                              onClick={() => handleQuickDownloadPdf(q)}
+                              className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
+                              title="Save / Download Quotation PDF"
+                            >
+                              <Download className="w-3.5 h-3.5 text-slate-600" />
+                            </button>
+
                             {/* View / Print modal */}
                             <button
                               type="button"
@@ -2370,6 +2511,27 @@ export default function QuotationsPage() {
                     </div>
                   )}
 
+                  {/* Send via WhatsApp / Email Button */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenSendModal(selectedQuotation, 'whatsapp')}
+                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 cursor-pointer transition"
+                      title="Send Quotation via WhatsApp"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-white" />
+                      <span>Send WhatsApp</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenSendModal(selectedQuotation, 'email')}
+                      className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 cursor-pointer transition"
+                      title="Send Quotation via Email"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-white" />
+                      <span>Send Email</span>
+                    </button>
+                  </div>
+
                   {selectedQuotation.status === 'Draft' && (
                     <button
                       onClick={() => {
@@ -2523,6 +2685,221 @@ export default function QuotationsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* SEND QUOTATION MODAL (WhatsApp & Email) */}
+        {isSendModalOpen && sendTargetQuote && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white ${sendChannel === 'whatsapp' ? 'bg-emerald-600' : 'bg-blue-600'}`}>
+                    {sendChannel === 'whatsapp' ? <MessageSquare className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Send Quotation {sendTargetQuote.quotationNumber}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Recipient: <strong>{sendRecipientName || sendTargetQuote.customerName}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSendModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-xs">
+                {/* Select Channel */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Select Sending Method</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('whatsapp')}
+                      className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold cursor-pointer transition ${
+                        sendChannel === 'whatsapp'
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs ring-2 ring-emerald-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4 text-emerald-600" />
+                      <span>WhatsApp Message</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('email')}
+                      className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold cursor-pointer transition ${
+                        sendChannel === 'email'
+                          ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-xs ring-2 ring-blue-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Mail className="w-4 h-4 text-blue-600" />
+                      <span>Direct Email</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mode Indicator Banner */}
+                {sendChannel === 'email' ? (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                        <span>Direct Server Email Dispatch</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-600 text-white font-semibold">Automatic PDF</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                        The exact official Quotation PDF will be automatically generated and attached to the email sent to the recipient. No manual download or attachment is required!
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-slate-900 text-xs">
+                        WhatsApp Message & PDF
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                        Opens WhatsApp with complete quotation details formatted. If needed, you can also download the PDF copy below:
+                      </p>
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleQuickDownloadPdf(sendTargetQuote)}
+                          className="px-3.5 py-1.5 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-100/50 text-slate-800 font-bold text-[11px] inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Save PDF Copy</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recipient Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {sendChannel === 'whatsapp' ? 'WhatsApp Phone (10 digits)' : 'Phone Number'}
+                    </label>
+                    <input
+                      type="text"
+                      value={sendPhone}
+                      onChange={(e) => setSendPhone(e.target.value)}
+                      placeholder="e.g. 9840122334"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Recipient Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={sendEmail}
+                      onChange={(e) => setSendEmail(e.target.value)}
+                      placeholder="e.g. client@example.com"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Fetched Quotation Summary Box */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">Total Amount Quoted</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">
+                      ₹{sendTargetQuote.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">Quotation Status</div>
+                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                      {sendTargetQuote.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Message Preview & Edit */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      Auto-generated Quotation Message (Editable)
+                    </label>
+                    <span className="text-[10px] text-slate-400">Fetched automatically</span>
+                  </div>
+                  <textarea
+                    rows={8}
+                    value={sendMessageText}
+                    onChange={(e) => setSendMessageText(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-[11px] font-mono leading-relaxed text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none resize-none"
+                  />
+                </div>
+
+                {/* Modal Actions */}
+                <div className="pt-3 flex items-center justify-between border-t border-slate-200">
+                  <div className="text-[11px] text-slate-500">
+                    {sendChannel === 'whatsapp' ? (
+                      <span>Opens WhatsApp with prefilled quotation breakdown</span>
+                    ) : (
+                      <span>Sends email directly with Quotation PDF attached</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSendingEmail}
+                      onClick={() => setIsSendModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSendingEmail}
+                      onClick={handleExecuteSend}
+                      className={`px-5 py-2 rounded-xl text-white font-bold text-xs shadow-md cursor-pointer flex items-center gap-1.5 transition disabled:opacity-60 ${
+                        sendChannel === 'whatsapp'
+                          ? 'bg-emerald-600 hover:bg-emerald-700'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {isSendingEmail ? (
+                        <>
+                          <Clock className="w-3.5 h-3.5 animate-spin" />
+                          <span>Sending PDF Email...</span>
+                        </>
+                      ) : sendChannel === 'whatsapp' ? (
+                        <>
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Send via WhatsApp</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Send Email with PDF</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

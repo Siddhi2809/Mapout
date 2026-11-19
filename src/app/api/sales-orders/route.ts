@@ -324,6 +324,7 @@ export async function PUT(request: Request) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "quotationNumber" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentMode" TEXT DEFAULT 'Prepaid';`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "rawMaterialsDeducted" BOOLEAN DEFAULT false;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "productsDeducted" BOOLEAN DEFAULT false;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "rawMaterialsUsed" TEXT;`);
     } catch (e: any) {
       console.warn('ALTER TABLE check warning:', e.message);
@@ -415,6 +416,7 @@ export async function PUT(request: Request) {
     if (body.amountOutstanding !== undefined) updateData.amountOutstanding = parseFloat(body.amountOutstanding);
     if (body.pendingAmount !== undefined) updateData.pendingAmount = parseFloat(body.pendingAmount);
     if (body.rawMaterialsDeducted !== undefined) updateData.rawMaterialsDeducted = Boolean(body.rawMaterialsDeducted);
+    if (body.productsDeducted !== undefined) updateData.productsDeducted = Boolean(body.productsDeducted);
     if (body.rawMaterialsUsed !== undefined) {
       updateData.rawMaterialsUsed =
         typeof body.rawMaterialsUsed === 'string'

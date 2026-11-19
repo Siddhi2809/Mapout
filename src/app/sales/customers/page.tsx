@@ -42,6 +42,7 @@ export default function CustomersPage() {
     updateCustomerFull,
     toggleCustomerStatus,
     generateEntityCode,
+    scopedSalesperson,
   } = useERP();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,6 +104,15 @@ export default function CustomersPage() {
   const filteredCustomers = useMemo(() => {
     return customers
       .filter((c) => {
+        // Individual Salesperson Scoping
+        if (scopedSalesperson) {
+          const sp = (c.assignedSalesUser || '').toLowerCase().trim();
+          const myName = scopedSalesperson.toLowerCase().trim();
+          if (sp && sp !== myName) {
+            return false;
+          }
+        }
+
         const matchSearch =
           c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           c.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -126,7 +136,7 @@ export default function CustomersPage() {
         if (sortBy === 'outstanding') return (b.totalOutstanding || 0) - (a.totalOutstanding || 0);
         return a.companyName.localeCompare(b.companyName);
       });
-  }, [customers, searchQuery, statusFilter, categoryFilter, cityFilter, startDate, endDate, sortBy]);
+  }, [customers, searchQuery, statusFilter, categoryFilter, cityFilter, startDate, endDate, sortBy, scopedSalesperson]);
 
   const handleOpenAddModal = () => {
     setEditingCustomer(null);
@@ -150,7 +160,7 @@ export default function CustomersPage() {
     setFormCustomerSource('Website');
     setFormPaymentTerms('Net 30 Days');
     setFormCreditLimit('150000');
-    setFormAssignedSalesUser('Rajesh Kumar');
+    setFormAssignedSalesUser(scopedSalesperson || 'Rajesh Kumar');
     setFormFollowUpDate('');
     setFormNotes('');
     setFormStatus('ACTIVE');
@@ -328,6 +338,29 @@ export default function CustomersPage() {
         {toastMessage && (
           <div className="fixed top-20 right-8 z-50 px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium text-xs shadow-xl flex items-center gap-2 animate-bounce">
             <CheckCircle2 className="w-4 h-4" /> {toastMessage}
+          </div>
+        )}
+
+        {/* Salesperson Scoped View Banner */}
+        {scopedSalesperson && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs text-blue-900 font-medium">
+                  <strong>Personal Customer Ledger:</strong> Displaying accounts managed by or assigned to{' '}
+                  <strong>{scopedSalesperson}</strong> ({filteredCustomers.length} clients).
+                </p>
+                <p className="text-[11px] text-blue-600 mt-0.5">
+                  General Sales Manager & Admins view company-wide accounts across all sales representatives.
+                </p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-wider">
+              Scoped Sales Rep
+            </span>
           </div>
         )}
 
