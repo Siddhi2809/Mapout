@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { SALES_NAV } from '@/lib/nav';
@@ -108,7 +108,12 @@ export default function LeadsPage() {
     activeRole,
     currentUser,
     scopedSalesperson,
+    refreshLeadsFromDB,
   } = useERP();
+
+  useEffect(() => {
+    refreshLeadsFromDB();
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');

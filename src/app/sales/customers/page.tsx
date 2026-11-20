@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { SALES_NAV } from '@/lib/nav';
 import { useERP } from '@/context/ERPContext';
@@ -36,6 +37,7 @@ import {
   UserCheck,
   Briefcase,
   Calendar,
+  ExternalLink,
 } from 'lucide-react';
 
 export default function CustomersPage() {
@@ -54,7 +56,12 @@ export default function CustomersPage() {
     scopedSalesperson,
     importCustomersBatch,
     refreshCustomersFromDB,
+    refreshQuotationsFromDB,
   } = useERP();
+
+  useEffect(() => {
+    refreshQuotationsFromDB();
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -1330,8 +1337,17 @@ export default function CustomersPage() {
                                 (selectedCustomer.companyName || selectedCustomer.name).toLowerCase().trim())
                         )
                         .map((q) => (
-                          <tr key={q.id} className="hover:bg-slate-50">
-                            <td className="p-2 font-mono text-purple-600 font-bold">{q.quotationNumber}</td>
+                          <tr key={q.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-2 font-mono font-bold">
+                              <Link
+                                href={`/sales/quotations?quoteNumber=${encodeURIComponent(q.quotationNumber)}`}
+                                className="text-purple-600 hover:text-purple-800 hover:underline flex items-center gap-1 group"
+                                title="Open Quotation Details"
+                              >
+                                <span>{q.quotationNumber}</span>
+                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </Link>
+                            </td>
                             <td className="p-2 text-slate-600 font-mono">{q.quotationDate}</td>
                             <td className="p-2 text-right font-bold text-slate-900">
                               ₹{(q.totalAmount || 0).toLocaleString('en-IN')}

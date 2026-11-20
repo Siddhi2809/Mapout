@@ -1,0 +1,592 @@
+{
+  "totalRepeatedAccounts": 246,
+  "totalExtraRows": 325,
+  "topRepeated": [
+    {
+      "name": "Automotive Manufacturers Pvt Ltd",
+      "count": 12,
+      "rows": [
+        511,
+        598,
+        710,
+        973,
+        1056,
+        2705,
+        2949,
+        2965,
+        3045,
+        3428,
+        3429,
+        3551
+      ],
+      "cities": [
+        "Visakhapatnam",
+        "Kodad",
+        "Srikakulam",
+        "Secundarabad",
+        "Nellore",
+        "Chittor",
+        "Pune",
+        "PUNE",
+        "Dared,Jamnagar",
+        "Panvel"
+      ],
+      "phones": [
+        "62812 71701",
+        "9014776874",
+        "7981560564",
+        "7993335550",
+        "9966349629",
+        "8978801835",
+        "86689 99819",
+        "9850809664"
+      ]
+    },
+    {
+      "name": "SAI SERVICE PVT LTD",
+      "count": 6,
+      "rows": [
+        467,
+        488,
+        496,
+        587,
+        592,
+        2198
+      ],
+      "cities": [
+        "Kottayam",
+        "Mumbai",
+        "Pune",
+        ", Navi Mumbai,"
+      ],
+      "phones": [
+        "8137014222",
+        "9288024216",
+        "7506240852",
+        "9923208315",
+        "8976999052"
+      ]
+    },
+    {
+      "name": "BALAJI MOTORS",
+      "count": 6,
+      "rows": [
+        1298,
+        2306,
+        2633,
+        2856,
+        2984,
+        3734
+      ],
+      "cities": [
+        "KISHANGARH",
+        "Pune",
+        "DIST.- SIROHI",
+        "Kacholi Chouraha"
+      ],
+      "phones": [
+        "9829100702",
+        "9922189856",
+        "9131423619",
+        "6232 033 936",
+        "81072 49686",
+        "02971226273"
+      ]
+    },
+    {
+      "name": "LOTUS MOTORS",
+      "count": 5,
+      "rows": [
+        402,
+        1717,
+        2274,
+        2282,
+        2466
+      ],
+      "cities": [
+        "Rajsamand",
+        "Bhilwara,",
+        "Kishangarh"
+      ],
+      "phones": [
+        "7014284631",
+        "8829895000",
+        "9509666973",
+        "97992 57759"
+      ]
+    },
+    {
+      "name": "Sai Auto Works",
+      "count": 5,
+      "rows": [
+        737,
+        2637,
+        3106,
+        3634,
+        3640
+      ],
+      "cities": [
+        "Raichur",
+        "TORANAGALLU",
+        "Kushtagi",
+        "RAICHUR"
+      ],
+      "phones": [
+        "7338166111",
+        "9738884958",
+        "9538038176",
+        "7338566111"
+      ]
+    },
+    {
+      "name": "Prakash Kumar",
+      "count": 5,
+      "rows": [
+        1553,
+        1702,
+        1703,
+        1704,
+        1705
+      ],
+      "cities": [],
+      "phones": [
+        "9382720482"
+      ]
+    },
+    {
+      "name": "Antony Commercial Vehicles Pvt Ltd",
+      "count": 5,
+      "rows": [
+        2105,
+        2710,
+        3030,
+        3670,
+        3677
+      ],
+      "cities": [
+        "Navi Mumbai",
+        "Jasai",
+        "Raigarh",
+        "Raigard",
+        "pUNE"
+      ],
+      "phones": [
+        "9890319356",
+        "8879001948",
+        "+91 87793 86808"
+      ]
+    },
+    {
+      "name": "anil motors",
+      "count": 5,
+      "rows": [
+        3035,
+        3236,
+        3245,
+        3301,
+        3513
+      ],
+      "cities": [
+        "Jabalpur",
+        "satara"
+      ],
+      "phones": [
+        "98222658960",
+        "8966000572",
+        "8966000577",
+        "8966000588"
+      ]
+    },
+    {
+      "name": "LAXMI MOTORS",
+      "count": 4,
+      "rows": [
+        17,
+        336,
+        360,
+        2914
+      ],
+      "cities": [
+        "PUNE",
+        "Pune",
+        "Agra"
+      ],
+      "phones": [
+        "9011786935",
+        "9763920080",
+        "7036235563",
+        "8826776564"
+      ]
+    },
+    {
+      "name": "Ahuja Automobiles",
+      "count": 4,
+      "rows": [
+        518,
+        1623,
+        3344,
+        3356
+      ],
+      "cities": [
+        "Korba",
+        "Raipur"
+      ],
+      "phones": [
+        "7611130405",
+        "9329141946"
+      ]
+    },
+    {
+      "name": "Krishna Motors",
+      "count": 4,
+      "rows": [
+        596,
+        1315,
+        2430,
+        3305
+      ],
+      "cities": [
+        "Panvel",
+        "Rishikesh",
+        "Dholpur",
+        "Rajasthan"
+      ],
+      "phones": [
+        "8850056509",
+        "9412051233",
+        "9413310840"
+      ]
+    },
+    {
+      "name": "Sky Automobiles",
+      "count": 4,
+      "rows": [
+        887,
+        921,
+        1054,
+        2502
+      ],
+      "cities": [
+        "Cuttack",
+        "Raipur",
+        "Telibandha ,Raipur"
+      ],
+      "phones": [
+        "9040085701",
+        "9584433147",
+        "9584460289",
+        "9691940090"
+      ]
+    },
+    {
+      "name": "Kabra Traders",
+      "count": 4,
+      "rows": [
+        1885,
+        1886,
+        2819,
+        3409
+      ],
+      "cities": [
+        "Gadarwara"
+      ],
+      "phones": [
+        "8370098867",
+        "8827582582",
+        "9179303501"
+      ]
+    },
+    {
+      "name": "abc",
+      "count": 3,
+      "rows": [
+        2,
+        2320,
+        2704
+      ],
+      "cities": [
+        "pune"
+      ],
+      "phones": [
+        "762009884"
+      ]
+    },
+    {
+      "name": "BHARAT MOTORS",
+      "count": 3,
+      "rows": [
+        57,
+        69,
+        3128
+      ],
+      "cities": [
+        "Lunpuria, Kaibarta Gaon",
+        "Dimoruguri"
+      ],
+      "phones": [
+        "7099016084",
+        "8638689250",
+        "91114 90705"
+      ]
+    },
+    {
+      "name": "Tata Motors Limited",
+      "count": 3,
+      "rows": [
+        191,
+        1073,
+        1917
+      ],
+      "cities": [
+        "Ahmadabad",
+        "Pune"
+      ],
+      "phones": [
+        "7046014056",
+        "7620273969"
+      ]
+    },
+    {
+      "name": "Kothari Auto Wheels Pvt Ltd",
+      "count": 3,
+      "rows": [
+        222,
+        992,
+        1143
+      ],
+      "cities": [
+        "Narayangon",
+        "Pune"
+      ],
+      "phones": [
+        "8087055099",
+        "8087076093",
+        "9168656888"
+      ]
+    },
+    {
+      "name": "Tanu Motors Pvt Ltd",
+      "count": 3,
+      "rows": [
+        407,
+        442,
+        803
+      ],
+      "cities": [
+        "palanpur",
+        "Unjha",
+        "Ahemedabad"
+      ],
+      "phones": [
+        "9106914019",
+        "9909006076",
+        "9512009110"
+      ]
+    },
+    {
+      "name": "Aniket bike care",
+      "count": 3,
+      "rows": [
+        431,
+        432,
+        433
+      ],
+      "cities": [
+        "amravati"
+      ],
+      "phones": [
+        "7517709914"
+      ]
+    },
+    {
+      "name": "METRO MOTORS",
+      "count": 3,
+      "rows": [
+        516,
+        1773,
+        3619
+      ],
+      "cities": [
+        "Rajkot"
+      ],
+      "phones": [
+        "91570 53532",
+        "8000025892"
+      ]
+    },
+    {
+      "name": "TR Enterprises",
+      "count": 3,
+      "rows": [
+        626,
+        1429,
+        3373
+      ],
+      "cities": [
+        "Hoshiarpur",
+        "HOSHIARPUR",
+        "Bilaspur"
+      ],
+      "phones": [
+        "9204855847",
+        "94595 00318"
+      ]
+    },
+    {
+      "name": "Hari Om Motors",
+      "count": 3,
+      "rows": [
+        736,
+        1418,
+        3472
+      ],
+      "cities": [
+        "Shahpura , Jaipur",
+        "Jaipur"
+      ],
+      "phones": [
+        "9785783641",
+        "97857 83641",
+        "9414424696"
+      ]
+    },
+    {
+      "name": "Ashok Leyland",
+      "count": 3,
+      "rows": [
+        742,
+        3176,
+        3180
+      ],
+      "cities": [
+        "Basavakalyan",
+        "chennai"
+      ],
+      "phones": [
+        "9902280649",
+        "9503104222",
+        "9790949131"
+      ]
+    },
+    {
+      "name": "SEEMANCHAL MOTORS PVT LTD",
+      "count": 3,
+      "rows": [
+        927,
+        1198,
+        1816
+      ],
+      "cities": [
+        "Gulabbagh Purnea",
+        "Bhagalpur",
+        "KISHANGANJ"
+      ],
+      "phones": [
+        "9939482690",
+        "8797096020",
+        "8797096019"
+      ]
+    },
+    {
+      "name": "One Up motors India pvt. ltd.",
+      "count": 3,
+      "rows": [
+        928,
+        1012,
+        1457
+      ],
+      "cities": [
+        "Lucknow",
+        "Luknow"
+      ],
+      "phones": [
+        "79059 35323",
+        "9918100355"
+      ]
+    },
+    {
+      "name": "Raj Enterprises",
+      "count": 3,
+      "rows": [
+        1010,
+        2290,
+        2668
+      ],
+      "cities": [
+        "Greater Noida",
+        "GREATER NOIDA",
+        "NAGAUR"
+      ],
+      "phones": [
+        "9871049102",
+        "9784395381"
+      ]
+    },
+    {
+      "name": "GLOBE AUTO PARTS",
+      "count": 3,
+      "rows": [
+        1032,
+        1034,
+        1711
+      ],
+      "cities": [
+        "Jalandhar",
+        "Amritsar"
+      ],
+      "phones": [
+        "0181-5080438",
+        "9814952498",
+        "9878678613"
+      ]
+    },
+    {
+      "name": "Yashwant Auto Pvt Ltd",
+      "count": 3,
+      "rows": [
+        1041,
+        3164,
+        3349
+      ],
+      "cities": [
+        "Ahilyanagr"
+      ],
+      "phones": [
+        "9096021700",
+        "8208301445"
+      ]
+    },
+    {
+      "name": "sagar motors",
+      "count": 3,
+      "rows": [
+        1102,
+        3455,
+        3681
+      ],
+      "cities": [
+        "Solapur",
+        "latur",
+        "JALNA"
+      ],
+      "phones": [
+        "9011387777"
+      ]
+    },
+    {
+      "name": "Depot Manager",
+      "count": 3,
+      "rows": [
+        1267,
+        2572,
+        2833
+      ],
+      "cities": [],
+      "phones": [
+        "7382881196",
+        "9113067504",
+        "73828 75934"
+      ]
+    }
+  ]
+}

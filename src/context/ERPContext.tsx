@@ -119,6 +119,7 @@ interface ERPContextType {
   refreshSalesOrdersFromDB: () => Promise<SalesOrder[]>;
   refreshQuotationsFromDB: () => Promise<Quotation[]>;
   refreshCustomersFromDB: () => Promise<Customer[]>;
+  refreshLeadsFromDB: () => Promise<Lead[]>;
   importCustomersBatch: (customersList: any[]) => Promise<{ success: boolean; message?: string; count?: number }>;
 
   // BOM Actions
@@ -566,14 +567,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Sync state to LocalStorage
+  // Sync UI state to LocalStorage (exclude large database tables: customers, quotations, leads, invoices to prevent browser quota limit errors)
   useEffect(() => {
     try {
       const stateToSave = {
         rawMaterials,
         finishedGoods,
         productionOrders,
-        customers,
         salesOrders,
         suppliers,
         purchaseOrders,
@@ -586,13 +586,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         productReturns,
         stockAdjustments,
         fgTransactions,
-        quotations,
-        leads,
-        leadImportHistories,
         followUps,
-        invoices,
         dispatches,
-        customerPayments,
         salesReturns,
         purchaseRequests,
       };
@@ -604,7 +599,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     rawMaterials,
     finishedGoods,
     productionOrders,
-    customers,
     salesOrders,
     suppliers,
     purchaseOrders,
@@ -617,13 +611,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     productReturns,
     stockAdjustments,
     fgTransactions,
-    quotations,
-    leads,
-    leadImportHistories,
     followUps,
-    invoices,
     dispatches,
-    customerPayments,
     salesReturns,
     purchaseRequests,
   ]);
@@ -5584,6 +5573,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   };
 
+  const refreshLeadsFromDB = async (): Promise<Lead[]> => {
+    try {
+      const res = await fetch('/api/leads');
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.data)) {
+        setLeads(data.data);
+        return data.data;
+      }
+    } catch (e) {
+      console.warn('Failed to refresh leads from DB:', e);
+    }
+    return [];
+  };
+
   // --- BOM ACTIONS ---
   const addBOM = (bom: Omit<BOM, 'id' | 'bomNumber' | 'createdDate'>) => {
     if (!bom.items || bom.items.length === 0) {
@@ -6483,6 +6486,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshRawMaterialsFromDB,
         refreshSalesOrdersFromDB,
         refreshQuotationsFromDB,
+        refreshLeadsFromDB,
 
         addRawMaterial,
         updateRawMaterial,

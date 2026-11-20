@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { SALES_NAV } from '@/lib/nav';
@@ -47,7 +48,7 @@ import {
   Download,
 } from 'lucide-react';
 
-export default function QuotationsPage() {
+function QuotationsPageContent() {
   const {
     quotations,
     customers,
@@ -87,10 +88,29 @@ export default function QuotationsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  const searchParams = useSearchParams();
+  const urlQuoteNumber = searchParams ? searchParams.get('quoteNumber') : null;
+
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+
+  // Auto-open quotation view modal if navigated from customer profile or direct URL
+  useEffect(() => {
+    if (urlQuoteNumber && quotations && quotations.length > 0) {
+      const target = quotations.find(
+        (q) =>
+          q.quotationNumber?.toLowerCase().trim() === urlQuoteNumber.toLowerCase().trim() ||
+          q.id === urlQuoteNumber
+      );
+      if (target) {
+        setSelectedQuotation(target);
+        setIsViewModalOpen(true);
+        setSearchQuery(target.quotationNumber);
+      }
+    }
+  }, [urlQuoteNumber, quotations]);
 
   // Searchable Customer Selector State
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -2905,5 +2925,24 @@ export default function QuotationsPage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function QuotationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardLayout roleTitle="Sales Management" roleBadge="Sales Rep" navItems={SALES_NAV}>
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="flex items-center gap-2 text-slate-500 text-sm">
+              <Clock className="w-5 h-5 animate-spin text-blue-600" />
+              <span>Loading Quotations...</span>
+            </div>
+          </div>
+        </DashboardLayout>
+      }
+    >
+      <QuotationsPageContent />
+    </Suspense>
   );
 }
