@@ -8,6 +8,7 @@ import { useERP } from '@/context/ERPContext';
 import { Lead, LeadSource, LeadStatus, LeadImportHistory } from '@/types/erp';
 import {
   downloadLeadExcelTemplate,
+  exportLeadsToExcel,
   parseLeadFile,
   analyzeLeadsForImport,
   downloadErrorReport,
@@ -207,8 +208,14 @@ export default function LeadsPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  // Raw/Pending Leads (excludes leads moved/transferred to Pipeline Data)
+  const rawLeads = leads.filter((l) => {
+    const st = (l.status || '').trim();
+    return !st || st === 'Not Contacted' || st === 'New';
+  });
+
   // Filtered Leads
-  const filteredLeads = leads.filter((l) => {
+  const filteredLeads = rawLeads.filter((l) => {
     // Individual Salesperson Scoping
     if (scopedSalesperson) {
       const sp = (l.salesperson || l.assignedUser || '').toLowerCase().trim();
@@ -652,11 +659,11 @@ export default function LeadsPage() {
     }
     updateLeadFull(l.id, updates);
     if (newStatus === 'Follow-up') {
-      showToast(`✓ Lead "${l.companyName || l.leadName}" updated to Follow-up — recorded with all details in Follow-ups!`);
+      showToast(`✓ Lead transferred to Pipeline Data page (Status: Follow-up)`);
     } else if (newStatus === 'Contacted') {
-      showToast(`✓ Lead "${l.companyName || l.leadName}" marked Contacted — contact date & time recorded!`);
+      showToast(`✓ Lead transferred to Pipeline Data page (Status: Contacted)`);
     } else if (newStatus === 'Interested') {
-      showToast(`✓ Lead "${l.companyName || l.leadName}" marked as Interested!`);
+      showToast(`✓ Lead transferred to Pipeline Data page (Status: Interested)`);
     } else {
       showToast(`Lead "${l.companyName || l.leadName}" status updated to ${newStatus}.`);
     }
@@ -700,7 +707,10 @@ export default function LeadsPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Leads & Follow-ups (CRM)</h1>
               <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold">
-                {leads.length} Leads
+                {rawLeads.length} Raw Leads
+              </span>
+              <span className="text-xs text-slate-500 font-medium">
+                (Total in DB: {leads.length})
               </span>
             </div>
             <p className="text-xs text-slate-600 mt-1 font-medium">
@@ -709,6 +719,18 @@ export default function LeadsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Export Leads to Excel Button */}
+            <button
+              onClick={() => {
+                const today = new Date().toISOString().split('T')[0];
+                exportLeadsToExcel(filteredLeads, `Leads_Export_${today}.xlsx`);
+              }}
+              title="Export current filtered leads to Excel"
+              className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+            >
+              <Download className="w-4 h-4 text-emerald-600" /> Export Excel ({filteredLeads.length})
+            </button>
+
             {/* Download Template Button */}
             <button
               onClick={downloadLeadExcelTemplate}
@@ -937,7 +959,7 @@ export default function LeadsPage() {
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-slate-600">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-slate-800">
-                  Showing {filteredLeads.length} of {leads.length} leads
+                  Showing {filteredLeads.length} of {rawLeads.length} raw leads
                 </span>
                 {datePreset !== 'ALL' && (
                   <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-medium">

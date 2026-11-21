@@ -660,3 +660,95 @@ export function downloadErrorReport(
   XLSX.utils.book_append_sheet(wb, ws, 'Failed Rows');
   XLSX.writeFile(wb, fileName);
 }
+
+/**
+ * 5. Export Leads to Excel
+ */
+export function exportLeadsToExcel(leads: Lead[], filename = 'Leads_Export.xlsx') {
+  const wb = XLSX.utils.book_new();
+
+  const headers = [
+    'Lead ID',
+    'Date',
+    'Company Name',
+    'Contact Person',
+    'Mobile Number',
+    'Alternate Mobile',
+    'Email Address',
+    'City',
+    'State',
+    'Pincode',
+    'Office Address',
+    'GSTIN',
+    'Industry',
+    'Source',
+    'Salesperson',
+    'Brand / Requirement',
+    'Interested Product',
+    'Expected Value',
+    'Status',
+    'Contact Date',
+    'Contact Time',
+    'Next Follow-up Date',
+    'Notes / Remarks',
+  ];
+
+  const rows = leads.map((l) => [
+    l.leadNumber || '',
+    l.createdAt ? l.createdAt.split('T')[0] : '',
+    l.companyName || l.leadName || '',
+    l.contactPerson || '',
+    l.mobile || '',
+    l.alternateMobile || '',
+    l.email || '',
+    l.city || '',
+    l.state || '',
+    l.pincode || '',
+    l.address || '',
+    l.gstin || '',
+    l.industry || '',
+    l.source || '',
+    l.salesperson || l.assignedUser || '',
+    l.requirement || '',
+    l.interestedProductName || '',
+    l.expectedValue || 0,
+    l.status || '',
+    l.contactDate || '',
+    l.contactTime || '',
+    l.nextFollowUpDate || '',
+    l.notes || '',
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+  // Configure column widths
+  ws['!cols'] = [
+    { wch: 15 }, // Lead ID
+    { wch: 12 }, // Date
+    { wch: 28 }, // Company Name
+    { wch: 20 }, // Contact Person
+    { wch: 16 }, // Mobile Number
+    { wch: 16 }, // Alternate Mobile
+    { wch: 25 }, // Email Address
+    { wch: 15 }, // City
+    { wch: 15 }, // State
+    { wch: 10 }, // Pincode
+    { wch: 30 }, // Office Address
+    { wch: 16 }, // GSTIN
+    { wch: 18 }, // Industry
+    { wch: 14 }, // Source
+    { wch: 18 }, // Salesperson
+    { wch: 25 }, // Brand / Requirement
+    { wch: 22 }, // Interested Product
+    { wch: 14 }, // Expected Value
+    { wch: 15 }, // Status
+    { wch: 14 }, // Contact Date
+    { wch: 14 }, // Contact Time
+    { wch: 16 }, // Next Follow-up Date
+    { wch: 30 }, // Notes / Remarks
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+  XLSX.writeFile(wb, filename);
+}
+

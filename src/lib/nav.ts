@@ -18,6 +18,7 @@ import {
   Calendar,
   HandCoins,
   ClipboardList,
+  Database,
 } from 'lucide-react';
 import { NavItem } from '@/components/DashboardLayout';
 
@@ -52,6 +53,7 @@ export const SALES_NAV: NavItem[] = [
   { label: 'Sales Orders', href: '/sales/orders', icon: ShoppingCart },
   { label: 'COD Orders', href: '/sales/cod', icon: HandCoins },
   { label: 'Leads', href: '/sales/leads', icon: UserCheck },
+  { label: 'Data', href: '/sales/data', icon: Database },
   { label: 'Follow-ups', href: '/sales/follow-ups', icon: Calendar },
   { label: 'Payments', href: '/sales/payments', icon: CreditCard },
  
