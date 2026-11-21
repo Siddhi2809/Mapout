@@ -97,6 +97,7 @@ export default function ProductSalesOrdersPage() {
     [productId: string]: 'Pending' | 'Processing' | 'Packed' | 'Ready for Dispatch';
   }>({});
 
+  const [isUploadingImages, setIsUploadingImages] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -493,52 +494,76 @@ export default function ProductSalesOrdersPage() {
     setIsInvoiceViewModalOpen(true);
   };
 
-  const handleMultiImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMultiImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach((file) => {
-      if (file.size > 8 * 1024 * 1024) {
-        setFormError('Each image should be under 8MB.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          // Resize to max 800px width/height and compress to lightweight JPEG
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const maxDim = 800;
+    setIsUploadingImages(true);
+    setFormError(null);
 
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
+    try {
+      const fileList = Array.from(files);
+      for (const file of fileList) {
+        if (file.size > 15 * 1024 * 1024) {
+          setFormError('Each image should be under 15MB.');
+          continue;
+        }
 
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
-            setUploadedImages((prev) => [...prev, compressedBase64]);
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const uploadRes = await fetch('/api/products/upload-image', {
+            method: 'POST',
+            body: fd,
+          });
+          const uploadData = await uploadRes.json();
+          if (uploadData?.success && uploadData?.imageUrl) {
+            setUploadedImages((prev) => [...prev, uploadData.imageUrl]);
           } else {
-            setUploadedImages((prev) => [...prev, event.target?.result as string]);
+            // Fallback to local canvas compressed base64 if network upload failed
+            await new Promise<void>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  let width = img.width;
+                  let height = img.height;
+                  const maxDim = 800;
+                  if (width > maxDim || height > maxDim) {
+                    if (width > height) {
+                      height = Math.round((height * maxDim) / width);
+                      width = maxDim;
+                    } else {
+                      width = Math.round((width * maxDim) / height);
+                      height = maxDim;
+                    }
+                  }
+                  canvas.width = width;
+                  canvas.height = height;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    setUploadedImages((prev) => [...prev, compressedBase64]);
+                  } else {
+                    setUploadedImages((prev) => [...prev, event.target?.result as string]);
+                  }
+                  resolve();
+                };
+                img.src = event.target?.result as string;
+              };
+              reader.readAsDataURL(file);
+            });
           }
-        };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    e.target.value = '';
+        } catch (uploadErr) {
+          console.warn('Error uploading image to server/ImageKit, using fallback:', uploadErr);
+        }
+      }
+    } finally {
+      setIsUploadingImages(false);
+      e.target.value = '';
+    }
   };
 
   const handleRemoveImage = (indexToRemove: number) => {
@@ -1521,11 +1546,24 @@ export default function ProductSalesOrdersPage() {
                       </p>
                     </div>
 
-                    <label className="cursor-pointer px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 transition shadow-sm w-max">
-                      <Upload className="w-4 h-4" /> Upload Product/Packing Images
+                    <label className={`px-3.5 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-2 transition shadow-sm w-max ${
+                      isUploadingImages ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                    }`}>
+                      {isUploadingImages ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Uploading Images...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          <span>Upload Product/Packing Images</span>
+                        </>
+                      )}
                       <input
                         type="file"
                         multiple
+                        disabled={isUploadingImages}
                         accept="image/*"
                         onChange={handleMultiImageUpload}
                         className="hidden"

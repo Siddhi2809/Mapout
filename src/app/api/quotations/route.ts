@@ -101,17 +101,135 @@ async function ensureQuotationTables() {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureQuotationTables();
 
-    const rawQuotations: any[] = await prisma.$queryRawUnsafe(
-      `SELECT * FROM "Quotation" ORDER BY "createdAt" DESC`
-    );
+    const { searchParams } = new URL(request.url);
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
+    const statsOnly = searchParams.get('statsOnly') === 'true';
+    const search = searchParams.get('search')?.trim() || '';
 
-    const allItems: any[] = await prisma.$queryRawUnsafe(
-      `SELECT * FROM "QuotationItem"`
-    );
+    // 1. Fast Stats Aggregation
+    const statsResult: any[] = await prisma.$queryRawUnsafe(`
+      SELECT
+        COUNT(*)::int as total,
+        COUNT(CASE WHEN status IN ('Draft', 'Sent to Customer', 'Sent to Client', 'Sent') THEN 1 END)::int as drafts,
+        COUNT(CASE WHEN status IN ('Customer Approved', 'Approved', 'Confirmed') THEN 1 END)::int as approved,
+        COUNT(CASE WHEN status IN ('Invoice Generated', 'Payment Pending', 'Payment Completed') THEN 1 END)::int as "invoiceGenerated",
+        COUNT(CASE WHEN status IN ('Sent to Production', 'Sent to Product', 'In Production', 'Production Completed', 'Packing', 'Packed', 'Ready for Dispatch') THEN 1 END)::int as "inProduction",
+        COUNT(CASE WHEN status IN ('Dispatched', 'Completed') THEN 1 END)::int as dispatched
+      FROM "Quotation"
+    `);
+
+    const stats = statsResult[0] || {
+      total: 0,
+      drafts: 0,
+      approved: 0,
+      invoiceGenerated: 0,
+      inProduction: 0,
+      dispatched: 0,
+    };
+
+    if (statsOnly) {
+      return NextResponse.json({
+        success: true,
+        stats,
+        total: stats.total,
+        data: [],
+      });
+    }
+
+    // Determine pagination / batching
+    const page = pageParam ? Math.max(1, parseInt(pageParam, 10)) : 1;
+    const isAll = limitParam === 'all';
+    const limit = isAll ? 0 : (limitParam ? Math.max(1, parseInt(limitParam, 10)) : 20);
+    const offset = isAll ? 0 : (page - 1) * limit;
+
+    let rawQuotations: any[] = [];
+    let effectiveTotal = stats.total;
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      // Count total matching quotations for this search across all records
+      const searchCountRes: any[] = await prisma.$queryRawUnsafe(`
+        SELECT COUNT(q.id)::int as count FROM "Quotation" q
+        WHERE (
+          q."quotationNumber" ILIKE $1
+          OR q."customerName" ILIKE $1
+          OR q."customerId" ILIKE $1
+          OR q."orderNumber" ILIKE $1
+          OR q."salesperson" ILIKE $1
+          OR EXISTS (
+            SELECT 1 FROM "QuotationItem" qi
+            WHERE qi."quotationId" = q.id
+            AND (qi."productName" ILIKE $1 OR qi.sku ILIKE $1)
+          )
+        )
+      `, searchPattern);
+      effectiveTotal = searchCountRes[0]?.count ?? 0;
+
+      if (isAll) {
+        rawQuotations = await prisma.$queryRawUnsafe(`
+          SELECT q.* FROM "Quotation" q
+          WHERE (
+            q."quotationNumber" ILIKE $1
+            OR q."customerName" ILIKE $1
+            OR q."customerId" ILIKE $1
+            OR q."orderNumber" ILIKE $1
+            OR q."salesperson" ILIKE $1
+            OR EXISTS (
+              SELECT 1 FROM "QuotationItem" qi
+              WHERE qi."quotationId" = q.id
+              AND (qi."productName" ILIKE $1 OR qi.sku ILIKE $1)
+            )
+          )
+          ORDER BY q."createdAt" DESC
+        `, searchPattern);
+      } else {
+        rawQuotations = await prisma.$queryRawUnsafe(`
+          SELECT q.* FROM "Quotation" q
+          WHERE (
+            q."quotationNumber" ILIKE $1
+            OR q."customerName" ILIKE $1
+            OR q."customerId" ILIKE $1
+            OR q."orderNumber" ILIKE $1
+            OR q."salesperson" ILIKE $1
+            OR EXISTS (
+              SELECT 1 FROM "QuotationItem" qi
+              WHERE qi."quotationId" = q.id
+              AND (qi."productName" ILIKE $1 OR qi.sku ILIKE $1)
+            )
+          )
+          ORDER BY q."createdAt" DESC
+          LIMIT $2 OFFSET $3
+        `, searchPattern, limit, offset);
+      }
+    } else {
+      if (isAll) {
+        rawQuotations = await prisma.$queryRawUnsafe(
+          `SELECT * FROM "Quotation" ORDER BY "createdAt" DESC`
+        );
+      } else {
+        rawQuotations = await prisma.$queryRawUnsafe(
+          `SELECT * FROM "Quotation" ORDER BY "createdAt" DESC LIMIT $1 OFFSET $2`,
+          limit,
+          offset
+        );
+      }
+    }
+
+    const quotationIds = rawQuotations.map((q) => q.id).filter(Boolean);
+
+    // Fetch items only for the quotations in this batch
+    let allItems: any[] = [];
+    if (quotationIds.length > 0) {
+      allItems = await prisma.$queryRawUnsafe(
+        `SELECT * FROM "QuotationItem" WHERE "quotationId" = ANY($1)`,
+        quotationIds
+      );
+    }
 
     const itemsByQuotationId = new Map<string, any[]>();
     allItems.forEach((item) => {
@@ -125,7 +243,16 @@ export async function GET() {
       items: itemsByQuotationId.get(q.id) || [],
     }));
 
-    return NextResponse.json({ success: true, data: quotations });
+    return NextResponse.json({
+      success: true,
+      data: quotations,
+      total: effectiveTotal,
+      grandTotal: stats.total,
+      page,
+      limit: isAll ? effectiveTotal : limit,
+      stats,
+      hasMore: !isAll && offset + quotations.length < effectiveTotal,
+    });
   } catch (error: any) {
     console.error('Failed to fetch quotations:', error);
     return NextResponse.json(

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { SALES_NAV } from '@/lib/nav';
 import { useERP } from '@/context/ERPContext';
-import { SalesOrder, SalesOrderItem, SalesOrderStatus, Quotation, QuotationStatus } from '@/types/erp';
+import { SalesOrder, SalesOrderItem, SalesOrderStatus, Quotation, QuotationStatus, SalesInvoice } from '@/types/erp';
 import {
   ShoppingCart,
   Plus,
@@ -617,9 +617,22 @@ export default function SalesOrdersPage() {
   const findLinkedQuotation = (so: SalesOrder): Quotation | undefined => {
     return quotations.find(
       (q) =>
+        (so.quotationId && q.id === so.quotationId) ||
         q.salesOrderId === so.id ||
         (q.orderNumber && q.orderNumber === so.orderNumber) ||
         (so.quotationNumber && q.quotationNumber === so.quotationNumber)
+    );
+  };
+
+  const findLinkedInvoice = (so: SalesOrder): SalesInvoice | undefined => {
+    return invoices.find(
+      (inv) =>
+        (so.invoiceId && inv.id === so.invoiceId) ||
+        inv.salesOrderId === so.id ||
+        (inv.salesOrderNumber && inv.salesOrderNumber === so.orderNumber) ||
+        (so.invoiceNumber && inv.invoiceNumber === so.invoiceNumber) ||
+        (so.quotationId && inv.quotationId === so.quotationId) ||
+        (so.quotationNumber && inv.quotationNumber === so.quotationNumber)
     );
   };
 
@@ -1057,9 +1070,44 @@ export default function SalesOrdersPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredOrders.map((so) => {
                   const linkedQuote = findLinkedQuotation(so);
-                  const effectiveProdStatus = so.productionStatus || (so.orderStatus === 'Sent to Product' ? 'Sent to Production' : so.orderStatus);
-                  const effectivePackingStatus = so.packingStatus || (so.orderStatus === 'Packed' ? 'Packed' : 'Pending');
-                  const imagesCount = (so.productionImages?.length || 0) + (so.packedImage && !so.productionImages?.includes(so.packedImage) ? 1 : 0);
+                  const linkedInv = findLinkedInvoice(so);
+                  const effectiveProdStatus =
+                    so.productionStatus ||
+                    (so.orderStatus === 'Sent to Product' ? 'Sent to Production' : undefined) ||
+                    linkedInv?.productionStatus ||
+                    (linkedQuote?.status?.toLowerCase().includes('product') || linkedQuote?.status?.toLowerCase().includes('pack')
+                      ? linkedQuote.status
+                      : undefined) ||
+                    so.orderStatus;
+                  const effectivePackingStatus =
+                    so.packingStatus ||
+                    (effectiveProdStatus === 'Packed' ? 'Packed' : undefined) ||
+                    (so.orderStatus === 'Packed' ? 'Packed' : undefined) ||
+                    (linkedQuote?.status === 'Packed' ? 'Packed' : undefined) ||
+                    'Pending';
+
+                  // Parse and collect all photos from sales order, invoice, and items
+                  const allImgs: string[] = [];
+                  if (Array.isArray(so.productionImages)) {
+                    allImgs.push(...so.productionImages);
+                  } else if (typeof so.productionImages === 'string' && so.productionImages) {
+                    try {
+                      const parsed = JSON.parse(so.productionImages);
+                      if (Array.isArray(parsed)) allImgs.push(...parsed);
+                      else allImgs.push(so.productionImages);
+                    } catch {
+                      allImgs.push(so.productionImages);
+                    }
+                  }
+                  if (so.packedImage && !allImgs.includes(so.packedImage)) {
+                    allImgs.push(so.packedImage);
+                  }
+                  if (linkedInv?.packedImages && Array.isArray(linkedInv.packedImages)) {
+                    linkedInv.packedImages.forEach((img: string) => {
+                      if (img && !allImgs.includes(img)) allImgs.push(img);
+                    });
+                  }
+                  const imagesCount = allImgs.length;
 
                   return (
                     <tr key={so.id} className="hover:bg-slate-50/70 transition">
@@ -1166,7 +1214,7 @@ export default function SalesOrdersPage() {
                             <button
                               type="button"
                               onClick={() => {
-                                const first = so.productionImages?.[0] || so.packedImage;
+                                const first = allImgs[0];
                                 if (first) {
                                   setPreviewImageModal({
                                     src: first,
@@ -1177,9 +1225,9 @@ export default function SalesOrdersPage() {
                               className="group relative inline-flex items-center gap-1 p-0.5 pr-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition shadow-2xs cursor-pointer"
                               title="Click to zoom uploaded product/packing photos"
                             >
-                              {(so.productionImages?.[0] || so.packedImage) && (
+                              {allImgs[0] && (
                                 <img
-                                  src={so.productionImages?.[0] || so.packedImage}
+                                  src={allImgs[0]}
                                   alt="Production proof"
                                   className="w-6 h-6 object-cover rounded-md border border-blue-200 shadow-2xs"
                                 />
@@ -1748,14 +1796,45 @@ export default function SalesOrdersPage() {
         {/* VIEW SALES ORDER DETAILS & WORKFLOW TRACKER MODAL */}
         {isViewModalOpen && selectedOrder && (() => {
           const linkedQuote = findLinkedQuotation(selectedOrder);
+          const linkedInv = findLinkedInvoice(selectedOrder);
           const workflowSteps = getWorkflowSteps(selectedOrder, linkedQuote);
           const allProductionImages: string[] = [];
           if (selectedOrder.productionImages && Array.isArray(selectedOrder.productionImages)) {
             allProductionImages.push(...selectedOrder.productionImages);
+          } else if (typeof selectedOrder.productionImages === 'string' && selectedOrder.productionImages) {
+            try {
+              const parsed = JSON.parse(selectedOrder.productionImages);
+              if (Array.isArray(parsed)) allProductionImages.push(...parsed);
+              else allProductionImages.push(selectedOrder.productionImages);
+            } catch {
+              allProductionImages.push(selectedOrder.productionImages);
+            }
           }
           if (selectedOrder.packedImage && !allProductionImages.includes(selectedOrder.packedImage)) {
             allProductionImages.push(selectedOrder.packedImage);
           }
+          if (linkedInv?.packedImages && Array.isArray(linkedInv.packedImages)) {
+            linkedInv.packedImages.forEach((img: string) => {
+              if (img && !allProductionImages.includes(img)) allProductionImages.push(img);
+            });
+          }
+
+          const viewProdStatus =
+            selectedOrder.productionStatus ||
+            linkedInv?.productionStatus ||
+            (selectedOrder.orderStatus === 'Sent to Product' ? 'Sent to Production' : undefined) ||
+            (linkedQuote?.status?.toLowerCase().includes('product') || linkedQuote?.status?.toLowerCase().includes('pack')
+              ? linkedQuote.status
+              : undefined) ||
+            selectedOrder.orderStatus ||
+            'Pending';
+
+          const viewPackingStatus =
+            selectedOrder.packingStatus ||
+            (viewProdStatus === 'Packed' ? 'Packed' : undefined) ||
+            (selectedOrder.orderStatus === 'Packed' ? 'Packed' : undefined) ||
+            (linkedQuote?.status === 'Packed' ? 'Packed' : undefined) ||
+            'Pending';
 
           return (
             <div
@@ -1949,18 +2028,18 @@ export default function SalesOrdersPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-white p-3.5 rounded-xl border border-blue-100">
                       <div>
                         <span className="text-slate-500 font-semibold block">Production Status:</span>
-                        <span className={`inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold border ${getProductionStatusBadge(selectedOrder.productionStatus || selectedOrder.orderStatus)}`}>
-                          {selectedOrder.productionStatus || selectedOrder.orderStatus || 'Pending'}
+                        <span className={`inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold border ${getProductionStatusBadge(viewProdStatus)}`}>
+                          {viewProdStatus}
                         </span>
                       </div>
                       <div>
                         <span className="text-slate-500 font-semibold block">Packing Status:</span>
                         <span className={`inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold border ${
-                          selectedOrder.packingStatus === 'Packed'
+                          viewPackingStatus === 'Packed'
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                             : 'bg-amber-100 text-amber-800 border-amber-300'
                         }`}>
-                          {selectedOrder.packingStatus || (selectedOrder.orderStatus === 'Packed' ? 'Packed' : 'Pending')}
+                          {viewPackingStatus}
                         </span>
                       </div>
                       <div>
@@ -1972,33 +2051,33 @@ export default function SalesOrdersPage() {
                       <div>
                         <span className="text-slate-500 font-semibold block">Packing Date:</span>
                         <div className="font-mono font-bold text-slate-800 mt-0.5">
-                          {selectedOrder.packingDate || (selectedOrder.packingStatus === 'Packed' ? 'Recorded' : 'Pending')}
+                          {selectedOrder.packingDate || (viewPackingStatus === 'Packed' ? 'Recorded' : 'Pending')}
                         </div>
                       </div>
 
                       <div className="col-span-2">
                         <span className="text-slate-500 font-semibold block">Production Notes:</span>
                         <div className="text-slate-800 italic mt-0.5 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                          {selectedOrder.productionNotes || selectedOrder.productTeamRemarks || 'No production notes recorded yet.'}
+                          {selectedOrder.productionNotes || selectedOrder.productTeamRemarks || linkedInv?.productionNotes || 'No production notes recorded yet.'}
                         </div>
                       </div>
                       <div className="col-span-2">
                         <span className="text-slate-500 font-semibold block">Packing Notes:</span>
                         <div className="text-slate-800 italic mt-0.5 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                          {selectedOrder.packingNotes || 'No packing notes recorded yet.'}
+                          {selectedOrder.packingNotes || linkedInv?.packingNotes || 'No packing notes recorded yet.'}
                         </div>
                       </div>
 
                       <div>
                         <span className="text-slate-500 font-semibold block">Batch / Lot #:</span>
                         <div className="font-mono font-bold text-slate-800 mt-0.5">
-                          {selectedOrder.batchNumber || 'Not assigned'}
+                          {selectedOrder.batchNumber || linkedInv?.batchNumber || 'Not assigned'}
                         </div>
                       </div>
                       <div>
                         <span className="text-slate-500 font-semibold block">Serial Number(s):</span>
                         <div className="font-mono font-bold text-slate-800 mt-0.5">
-                          {selectedOrder.serialNumber || 'Not assigned'}
+                          {selectedOrder.serialNumber || linkedInv?.serialNumber || 'Not assigned'}
                         </div>
                       </div>
                     </div>

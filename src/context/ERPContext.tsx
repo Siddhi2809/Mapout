@@ -117,7 +117,9 @@ interface ERPContextType {
   refreshProductsFromDB: () => Promise<ProductMaster[]>;
   refreshRawMaterialsFromDB: () => Promise<RawMaterial[]>;
   refreshSalesOrdersFromDB: () => Promise<SalesOrder[]>;
-  refreshQuotationsFromDB: () => Promise<Quotation[]>;
+  refreshQuotationsFromDB: (page?: number, limit?: number, search?: string) => Promise<{ data: Quotation[]; total: number; stats?: any; hasMore?: boolean }>;
+  fetchNextQuotationsBatch: (search?: string) => Promise<{ data: Quotation[]; hasMore: boolean }>;
+  quotationsPagination: { page: number; limit: number; total: number; search?: string; hasMore: boolean; isLoadingMore: boolean; stats: any };
   refreshCustomersFromDB: () => Promise<Customer[]>;
   refreshLeadsFromDB: () => Promise<Lead[]>;
   importCustomersBatch: (customersList: any[]) => Promise<{ success: boolean; message?: string; count?: number }>;
@@ -413,6 +415,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sales Management States
   const [quotations, setQuotations] = useState<Quotation[]>(INITIAL_QUOTATIONS);
+  const [quotationsPagination, setQuotationsPagination] = useState<{
+    page: number;
+    limit: number;
+    total: number;
+    search?: string;
+    hasMore: boolean;
+    isLoadingMore: boolean;
+    stats: any;
+  }>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    search: '',
+    hasMore: false,
+    isLoadingMore: false,
+    stats: {
+      total: 0,
+      drafts: 0,
+      approved: 0,
+      invoiceGenerated: 0,
+      inProduction: 0,
+      dispatched: 0,
+    },
+  });
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
   const [leadImportHistories, setLeadImportHistories] = useState<LeadImportHistory[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>(INITIAL_FOLLOWUPS);
@@ -507,6 +533,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (resLeadHistory?.success && Array.isArray(resLeadHistory.data)) setLeadImportHistories(resLeadHistory.data);
           if (resQuot?.success && Array.isArray(resQuot.data)) {
             setQuotations(resQuot.data);
+            if (resQuot.stats || resQuot.total !== undefined) {
+              setQuotationsPagination((prev) => ({
+                ...prev,
+                page: resQuot.page || 1,
+                limit: resQuot.limit || 20,
+                total: resQuot.total ?? resQuot.data.length,
+                hasMore: Boolean(resQuot.hasMore),
+                stats: resQuot.stats || prev.stats,
+              }));
+            }
 
             // Populate in-memory productionOrders for any Quotation marked Sent to Production
             const sentQuotations = resQuot.data.filter(
@@ -567,14 +603,29 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Sync UI state to LocalStorage (exclude large database tables: customers, quotations, leads, invoices to prevent browser quota limit errors)
+  // Sync UI state to LocalStorage (exclude large database tables & heavy base64 strings to prevent browser quota limit errors)
   useEffect(() => {
     try {
+      // Strip large raw base64 data from in-memory salesOrders when saving to localStorage
+      const safeSalesOrders = salesOrders.map((so) => {
+        const safeImgs = Array.isArray(so.productionImages)
+          ? so.productionImages.filter((img) => !img.startsWith('data:image/') || img.length < 5000)
+          : so.productionImages;
+        const safePacked = so.packedImage && so.packedImage.startsWith('data:image/') && so.packedImage.length >= 5000
+          ? undefined
+          : so.packedImage;
+        return {
+          ...so,
+          productionImages: safeImgs,
+          packedImage: safePacked,
+        };
+      });
+
       const stateToSave = {
         rawMaterials,
         finishedGoods,
         productionOrders,
-        salesOrders,
+        salesOrders: safeSalesOrders,
         suppliers,
         purchaseOrders,
         materialReceipts,
@@ -2989,7 +3040,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const today = new Date().toISOString().split('T')[0];
 
     // Normalize images array and merge with any existing photos
-    const existingOrder = salesOrders.find((so) => so.id === id || so.orderNumber === id);
+    const existingOrder = salesOrders.find(
+      (so) =>
+        so.id === id ||
+        so.orderNumber === id ||
+        (so.quotationId && so.quotationId === id) ||
+        (so.quotationNumber && so.quotationNumber === id)
+    );
     let images: string[] = data.productionImages ? [...data.productionImages] : [];
     if (data.packedImage && !images.includes(data.packedImage)) {
       images = [data.packedImage, ...images];
@@ -3000,7 +3057,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSalesOrders((prev) =>
       prev.map((so) => {
-        if (so.id === id || so.orderNumber === id) {
+        const isMatch =
+          so.id === id ||
+          so.orderNumber === id ||
+          (existingOrder && so.id === existingOrder.id) ||
+          (so.quotationId && (so.quotationId === id || (existingOrder && so.quotationId === existingOrder.quotationId))) ||
+          (so.quotationNumber && (so.quotationNumber === id || (existingOrder && so.quotationNumber === existingOrder.quotationNumber)));
+
+        if (isMatch) {
           const newOrderStatus = data.orderStatus ?? so.orderStatus;
           const newProdStatus = data.productionStatus ?? so.productionStatus ?? (data.orderStatus as string);
           const newPackStatus = data.packingStatus ?? so.packingStatus;
@@ -3046,7 +3110,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id,
+        id: existingOrder?.id || id,
+        orderNumber: existingOrder?.orderNumber,
+        quotationId: existingOrder?.quotationId,
+        quotationNumber: existingOrder?.quotationNumber,
         orderStatus: data.orderStatus,
         productionStatus: data.productionStatus,
         packingStatus: data.packingStatus,
@@ -3070,7 +3137,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (resData?.success && resData?.data) {
           setSalesOrders((prev) =>
             prev.map((so) =>
-              so.id === id || so.orderNumber === id || so.id === resData.data.id || so.orderNumber === resData.data.orderNumber
+              so.id === id ||
+              so.orderNumber === id ||
+              (existingOrder && so.id === existingOrder.id) ||
+              so.id === resData.data.id ||
+              so.orderNumber === resData.data.orderNumber ||
+              (resData.data.quotationId && so.quotationId === resData.data.quotationId)
                 ? {
                     ...so,
                     ...resData.data,
@@ -5559,18 +5631,53 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   };
 
-  const refreshQuotationsFromDB = async (): Promise<Quotation[]> => {
+  const refreshQuotationsFromDB = async (page = 1, limit = 20, search = ''): Promise<{ data: Quotation[]; total: number; stats?: any; hasMore?: boolean }> => {
     try {
-      const res = await fetch('/api/quotations');
+      const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
+      const res = await fetch(`/api/quotations?page=${page}&limit=${limit}${searchParam}`);
       const data = await res.json();
-      if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
-        setQuotations(data.data);
-        return data.data;
+      if (data?.success && Array.isArray(data.data)) {
+        if (page === 1) {
+          setQuotations(data.data);
+        } else {
+          setQuotations((prev) => {
+            const existingIds = new Set(prev.map((q) => q.id));
+            const fresh = data.data.filter((q: Quotation) => !existingIds.has(q.id));
+            return [...prev, ...fresh];
+          });
+        }
+        setQuotationsPagination((prev) => ({
+          ...prev,
+          page,
+          limit,
+          search,
+          total: data.total ?? data.data.length,
+          hasMore: Boolean(data.hasMore),
+          stats: data.stats || prev.stats,
+          isLoadingMore: false,
+        }));
+        return {
+          data: data.data,
+          total: data.total ?? data.data.length,
+          stats: data.stats,
+          hasMore: Boolean(data.hasMore),
+        };
       }
     } catch (e) {
       console.warn('Failed to refresh quotations from DB:', e);
     }
-    return [];
+    return { data: [], total: 0, hasMore: false };
+  };
+
+  const fetchNextQuotationsBatch = async (search = ''): Promise<{ data: Quotation[]; hasMore: boolean }> => {
+    if (!quotationsPagination.hasMore || quotationsPagination.isLoadingMore) {
+      return { data: [], hasMore: false };
+    }
+    setQuotationsPagination((prev) => ({ ...prev, isLoadingMore: true }));
+    const nextPage = quotationsPagination.page + 1;
+    const currentSearch = search !== undefined ? search : (quotationsPagination.search || '');
+    const res = await refreshQuotationsFromDB(nextPage, quotationsPagination.limit, currentSearch);
+    return { data: res.data, hasMore: Boolean(res.hasMore) };
   };
 
   const refreshLeadsFromDB = async (): Promise<Lead[]> => {
@@ -6486,6 +6593,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshRawMaterialsFromDB,
         refreshSalesOrdersFromDB,
         refreshQuotationsFromDB,
+        fetchNextQuotationsBatch,
+        quotationsPagination,
         refreshLeadsFromDB,
 
         addRawMaterial,
