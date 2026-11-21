@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
       recipientEmail,
       recipientName,
       customMessage,
+      extraAttachments, // Array<{ name: string; content: string; url?: string }>
     } = body;
 
     if (!recipientEmail || !recipientEmail.includes('@')) {
@@ -123,6 +124,19 @@ ${emailText}
       </div>
     `;
 
+    // Format any extra user attachments
+    const preparedExtraAttachments: Array<{ name: string; content: string }> = [];
+    if (extraAttachments && Array.isArray(extraAttachments)) {
+      extraAttachments.forEach((att) => {
+        if (att.name && att.content) {
+          preparedExtraAttachments.push({
+            name: att.name,
+            content: att.content,
+          });
+        }
+      });
+    }
+
     // 4. Send Email via Brevo
     const sendResult = await sendEmailViaBrevo({
       toEmail: recipientEmail,
@@ -133,6 +147,7 @@ ${emailText}
       attachmentName: filename,
       attachmentBuffer: pdfBuffer,
       pdfUrl: hostedPdfUrl,
+      extraAttachments: preparedExtraAttachments,
     });
 
     return NextResponse.json({

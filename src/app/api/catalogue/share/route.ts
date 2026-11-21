@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,6 +30,45 @@ export async function POST(req: NextRequest) {
 
     const subject = `Product Catalogue: ${productName || 'Special Product Offering'} - SUNYASH MULTI TRADING`;
 
+    // Handle Image attachment & CID for 100% email client compatibility (Gmail, Outlook, Yahoo)
+    let emailAttachments: any[] = [];
+    let imageSrc = '';
+
+    if (productImage) {
+      if (productImage.startsWith('data:image/')) {
+        // Base64 data URL: Extract buffer and send as inline CID attachment
+        const [meta, base64Data] = productImage.split(';base64,');
+        const ext = meta.split('/')[1] || 'jpeg';
+        const imgName = `product_${Date.now()}.${ext}`;
+        emailAttachments.push({
+          name: imgName,
+          content: base64Data,
+        });
+        imageSrc = `cid:${imgName}`;
+      } else if (productImage.startsWith('/uploads/')) {
+        // Local public file: Read from disk and attach as inline CID
+        const localFilePath = path.join(process.cwd(), 'public', productImage);
+        if (fs.existsSync(localFilePath)) {
+          const imgBuffer = fs.readFileSync(localFilePath);
+          const ext = path.extname(localFilePath).replace('.', '') || 'jpeg';
+          const imgName = `product_${Date.now()}.${ext}`;
+          emailAttachments.push({
+            name: imgName,
+            content: imgBuffer.toString('base64'),
+          });
+          imageSrc = `cid:${imgName}`;
+        } else {
+          // If public domain available
+          const host = req.headers.get('host') || 'localhost:3000';
+          const proto = req.headers.get('x-forwarded-proto') || 'http';
+          imageSrc = `${proto}://${host}${productImage}`;
+        }
+      } else {
+        // Full HTTP / HTTPS image URL (e.g. from CDN)
+        imageSrc = productImage;
+      }
+    }
+
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff;">
         <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 24px; color: #ffffff;">
@@ -47,9 +88,9 @@ export async function POST(req: NextRequest) {
           ` : ''}
 
           <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; background: #fdfdfd;">
-            ${productImage ? `
+            ${imageSrc ? `
               <div style="text-align: center; margin-bottom: 18px;">
-                <img src="${productImage}" alt="${productName}" style="max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 8px; border: 1px solid #e2e8f0;" />
+                <img src="${imageSrc}" alt="${productName}" style="max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 8px; border: 1px solid #e2e8f0;" />
               </div>
             ` : ''}
 
@@ -87,6 +128,17 @@ export async function POST(req: NextRequest) {
     `;
 
     if (brevoApiKey) {
+      const emailPayload: any = {
+        sender: { email: brevoSenderEmail, name: brevoSenderName },
+        to: [{ email: recipientEmail.trim(), name: recipientName || recipientEmail }],
+        subject,
+        htmlContent,
+      };
+
+      if (emailAttachments.length > 0) {
+        emailPayload.attachment = emailAttachments;
+      }
+
       const response = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
@@ -94,12 +146,7 @@ export async function POST(req: NextRequest) {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({
-          sender: { email: brevoSenderEmail, name: brevoSenderName },
-          to: [{ email: recipientEmail.trim(), name: recipientName || recipientEmail }],
-          subject,
-          htmlContent,
-        }),
+        body: JSON.stringify(emailPayload),
       });
 
       if (response.ok) {
@@ -112,14 +159,17 @@ export async function POST(req: NextRequest) {
       } else {
         const errText = await response.text();
         console.warn('[Brevo API Warning]', errText);
+        return NextResponse.json(
+          { success: false, message: `Brevo error: ${errText}` },
+          { status: 400 }
+        );
       }
     }
 
-    // Fallback: If Brevo API key is not configured, simulate success
     return NextResponse.json({
       success: true,
       simulated: true,
-      message: `Catalogue email prepared for ${recipientEmail}. (SMTP/Brevo API dispatched)`,
+      message: `Catalogue email prepared for ${recipientEmail}.`,
     });
   } catch (error: any) {
     console.error('Error sending catalogue email:', error);

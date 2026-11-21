@@ -6,15 +6,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { SALES_NAV } from '@/lib/nav';
 import { useERP } from '@/context/ERPContext';
 import { Lead, LeadSource, LeadStatus, LeadImportHistory } from '@/types/erp';
-import {
-  downloadLeadExcelTemplate,
-  exportLeadsToExcel,
-  parseLeadFile,
-  analyzeLeadsForImport,
-  downloadErrorReport,
-  ImportPreviewAnalysis,
-  ParsedLeadRow,
-} from '@/lib/leadExcel';
+import { exportLeadsToExcel, downloadLeadExcelTemplate, parseLeadFile, analyzeLeadsForImport, downloadErrorReport, ImportPreviewAnalysis, ParsedLeadRow } from '@/lib/leadExcel';
 import {
   UserCheck,
   Plus,
@@ -123,6 +115,10 @@ export default function LeadsPage() {
   const [datePreset, setDatePreset] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7' | 'THIS_MONTH' | 'CUSTOM'>('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Modal States
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -287,6 +283,15 @@ export default function LeadsPage() {
 
     return matchSearch && matchStatus && matchSource && matchCompleteness && matchDate;
   });
+
+  // Reset pagination when filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, sourceFilter, completenessFilter, datePreset, dateFrom, dateTo]);
+
+  // Paginated leads
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const paginatedLeads = filteredLeads.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Open Create Lead Modal
   const handleOpenCreateLeadModal = () => {
@@ -1006,7 +1011,7 @@ export default function LeadsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredLeads.map((l) => {
+                {paginatedLeads.map((l) => {
                   const audit = getLeadProfileAudit(l);
                   return (
                     <tr key={l.id} className="hover:bg-slate-50/80 transition">
@@ -1193,6 +1198,89 @@ export default function LeadsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span>
+                Showing{' '}
+                <span className="font-bold text-slate-800">
+                  {filteredLeads.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
+                </span>{' '}
+                to{' '}
+                <span className="font-bold text-slate-800">
+                  {Math.min(currentPage * pageSize, filteredLeads.length)}
+                </span>{' '}
+                of <span className="font-bold text-slate-800">{filteredLeads.length}</span> leads
+              </span>
+
+              <span className="text-slate-300">|</span>
+
+              <div className="flex items-center gap-1.5">
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="border border-slate-300 rounded px-2 py-0.5 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Navigation Buttons */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[11px]"
+                  title="First Page"
+                >
+                  &laquo; First
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[11px]"
+                  title="Previous Page"
+                >
+                  &lsaquo; Prev
+                </button>
+
+                <span className="px-2.5 py-1 text-xs font-semibold text-slate-800">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[11px]"
+                  title="Next Page"
+                >
+                  Next &rsaquo;
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[11px]"
+                  title="Last Page"
+                >
+                  Last &raquo;
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

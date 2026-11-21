@@ -46,6 +46,8 @@ import {
   Mail,
   Share2,
   Download,
+  Paperclip,
+  Upload,
 } from 'lucide-react';
 
 function QuotationsPageContent() {
@@ -125,6 +127,8 @@ function QuotationsPageContent() {
   const [sendEmail, setSendEmail] = useState('');
   const [sendMessageText, setSendMessageText] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [sendAttachments, setSendAttachments] = useState<Array<{ name: string; url?: string; content?: string; size?: number }>>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
 
   const buildQuotationMessage = (quote: Quotation, custObj?: any) => {
     const contactName = custObj?.contactPerson || custObj?.name || quote.customerName || 'Valued Client';
@@ -146,8 +150,53 @@ function QuotationsPageContent() {
     setSendRecipientName(name);
     setSendPhone(phone);
     setSendEmail(email);
+    setSendAttachments([]);
     setSendMessageText(buildQuotationMessage(quote, cust));
     setIsSendModalOpen(true);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      showNotification('error', 'Attachment must be under 10MB.');
+      return;
+    }
+
+    setIsUploadingAttachment(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/quotations/upload-attachment', {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSendAttachments((prev) => [
+          ...prev,
+          {
+            name: data.fileName,
+            url: data.url,
+            content: data.base64,
+            size: data.fileSize,
+          },
+        ]);
+        showNotification('success', `✓ Attached ${data.fileName}`);
+      } else {
+        showNotification('error', data.message || 'Failed to upload attachment.');
+      }
+    } catch (err: any) {
+      showNotification('error', err?.message || 'Error uploading file.');
+    } finally {
+      setIsUploadingAttachment(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = (idx: number) => {
+    setSendAttachments((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleExecuteSend = async () => {
@@ -156,7 +205,13 @@ function QuotationsPageContent() {
     if (sendChannel === 'whatsapp') {
       let cleanPhone = sendPhone.replace(/[^0-9]/g, '');
       if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-      const encodedMsg = encodeURIComponent(sendMessageText);
+      
+      let fullMessage = sendMessageText;
+      if (sendAttachments.length > 0) {
+        fullMessage += '\n\n📎 Attached Documents:\n' + sendAttachments.map((a) => `• ${a.name}: ${a.url || '(Document)'}`).join('\n');
+      }
+
+      const encodedMsg = encodeURIComponent(fullMessage);
       const waUrl = cleanPhone
         ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`
         : `https://api.whatsapp.com/send?text=${encodedMsg}`;
@@ -199,6 +254,11 @@ function QuotationsPageContent() {
             recipientEmail: sendEmail,
             recipientName: sendRecipientName,
             customMessage: sendMessageText,
+            extraAttachments: sendAttachments.map((a) => ({
+              name: a.name,
+              content: a.content || '',
+              url: a.url,
+            })),
           }),
         });
 
@@ -311,6 +371,8 @@ function QuotationsPageContent() {
   // Selected Item to Add
   const [selectedItemType, setSelectedItemType] = useState<'PRODUCT' | 'RAW_MATERIAL'>('PRODUCT');
   const [selectedItemId, setSelectedItemId] = useState('');
+  const [itemSearchQuery, setItemSearchQuery] = useState('');
+  const [isItemDropdownOpen, setIsItemDropdownOpen] = useState(false);
   const [inputQuantity, setInputQuantity] = useState(1);
   const [inputRate, setInputRate] = useState(0);
   const [inputDiscount, setInputDiscount] = useState(0);
@@ -350,6 +412,8 @@ function QuotationsPageContent() {
     setFormItems([]);
     setSelectedItemType('PRODUCT');
     setSelectedItemId('');
+    setItemSearchQuery('');
+    setIsItemDropdownOpen(false);
     setInputQuantity(1);
     setInputRate(0);
     setInputDiscount(0);
@@ -362,23 +426,50 @@ function QuotationsPageContent() {
   const handleItemSelect = (id: string, type: 'PRODUCT' | 'RAW_MATERIAL') => {
     setSelectedItemId(id);
     if (!id) {
+      setItemSearchQuery('');
       setInputRate(0);
       return;
     }
     if (type === 'PRODUCT') {
       const p = products.find((prod) => prod.id === id || prod.sku === id);
       if (p) {
+        setItemSearchQuery(p.name ? (p.sku ? `[${p.sku}] ${p.name}` : p.name) : (p.sku || ''));
         setInputRate(p.sellingPrice || 0);
         setInputGstPercent((p.gstPercent && Number(p.gstPercent) > 0) ? Number(p.gstPercent) : 18);
       }
     } else {
       const rm = rawMaterials.find((m) => m.id === id || m.sku === id);
       if (rm) {
+        setItemSearchQuery(rm.name ? (rm.sku ? `[${rm.sku}] ${rm.name}` : rm.name) : (rm.sku || ''));
         setInputRate(rm.unitCost || 0);
         setInputGstPercent(18);
       }
     }
+    setIsItemDropdownOpen(false);
   };
+
+  // Filtered Items for Typeahead / Search in Quotation Form
+  const filteredAvailableItems = useMemo(() => {
+    const q = itemSearchQuery.toLowerCase().trim();
+    if (selectedItemType === 'PRODUCT') {
+      if (!q) return products.slice(0, 50);
+      return products.filter((p) => {
+        const nameMatch = (p.name || '').toLowerCase().includes(q);
+        const skuMatch = (p.sku || '').toLowerCase().includes(q);
+        const codeMatch = (p.productCode || '').toLowerCase().includes(q);
+        const brandMatch = (p.brand || '').toLowerCase().includes(q);
+        return nameMatch || skuMatch || codeMatch || brandMatch;
+      }).slice(0, 50);
+    } else {
+      if (!q) return rawMaterials.slice(0, 50);
+      return rawMaterials.filter((rm) => {
+        const nameMatch = (rm.name || '').toLowerCase().includes(q);
+        const skuMatch = (rm.sku || '').toLowerCase().includes(q);
+        const codeMatch = (rm.materialCode || '').toLowerCase().includes(q);
+        return nameMatch || skuMatch || codeMatch;
+      }).slice(0, 50);
+    }
+  }, [selectedItemType, itemSearchQuery, products, rawMaterials]);
 
   // Add Item to Form Items list
   const handleAddItemToForm = () => {
@@ -433,6 +524,8 @@ function QuotationsPageContent() {
     ]);
 
     setSelectedItemId('');
+    setItemSearchQuery('');
+    setIsItemDropdownOpen(false);
     setInputQuantity(1);
     setInputRate(0);
     setInputDiscount(0);
@@ -1808,35 +1901,96 @@ function QuotationsPageContent() {
 
                   {/* Add Row Controls */}
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-                    {/* Item Dropdown */}
-                    <div className="sm:col-span-4">
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        Select {selectedItemType === 'PRODUCT' ? 'Product' : 'Material'}
+                    {/* Search & Select Item with Product Name / SMPL SKU */}
+                    <div className="sm:col-span-4 relative">
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center justify-between">
+                        <span>Search & Select {selectedItemType === 'PRODUCT' ? 'Product' : 'Material'}</span>
+                        <span className="text-[10px] text-blue-600 font-normal">By Name or SMPL / SKU</span>
                       </label>
-                      <select
-                        value={selectedItemId}
-                        onChange={(e) => handleItemSelect(e.target.value, selectedItemType)}
-                        className="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:border-blue-600 focus:ring-1 focus:ring-blue-100 truncate shadow-2xs"
-                      >
-                        <option value="">-- Choose item --</option>
-                        {selectedItemType === 'PRODUCT'
-                          ? products.map((p) => {
-                              const cleanName = p.name.length > 36 ? p.name.slice(0, 36).trim() + '…' : p.name;
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={itemSearchQuery}
+                          onChange={(e) => {
+                            setItemSearchQuery(e.target.value);
+                            setSelectedItemId('');
+                            setIsItemDropdownOpen(true);
+                          }}
+                          onFocus={() => setIsItemDropdownOpen(true)}
+                          placeholder={
+                            selectedItemType === 'PRODUCT'
+                              ? 'Search product name, SMPL code, or SKU...'
+                              : 'Search raw material name or code...'
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-md pl-2.5 pr-7 py-1.5 text-xs text-slate-900 font-medium focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-2xs truncate"
+                        />
+                        {itemSearchQuery ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setItemSearchQuery('');
+                              setSelectedItemId('');
+                              setIsItemDropdownOpen(true);
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                          >
+                            ×
+                          </button>
+                        ) : (
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[10px]">
+                            ▼
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Dropdown Results Menu */}
+                      {isItemDropdownOpen && (
+                        <div
+                          className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-xl divide-y divide-slate-100"
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          {filteredAvailableItems.length === 0 ? (
+                            <div className="p-3 text-xs text-slate-400 text-center">
+                              No matching {selectedItemType === 'PRODUCT' ? 'products' : 'materials'} found.
+                            </div>
+                          ) : (
+                            filteredAvailableItems.map((item: any) => {
+                              const isSelected = selectedItemId === item.id;
+                              const code = item.productCode || item.materialCode || item.sku || '';
+                              const rate = selectedItemType === 'PRODUCT' ? item.sellingPrice : item.unitCost;
                               return (
-                                <option key={p.id} value={p.id} title={p.name}>
-                                  {p.sku ? `[${p.sku}] ` : ''}{cleanName} (Stock: {p.currentStock}) - ₹{p.sellingPrice}
-                                </option>
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => handleItemSelect(item.id, selectedItemType)}
+                                  className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs transition ${
+                                    isSelected
+                                      ? 'bg-blue-50 text-blue-900 font-semibold'
+                                      : 'hover:bg-slate-50 text-slate-700'
+                                  }`}
+                                >
+                                  <div className="min-w-0 pr-2">
+                                    <div className="flex items-center gap-1.5">
+                                      {code && (
+                                        <span className="font-mono text-[11px] font-bold text-blue-600 px-1 py-0.2 rounded bg-blue-50 border border-blue-200 shrink-0">
+                                          {code}
+                                        </span>
+                                      )}
+                                      <span className="truncate font-medium">{item.name}</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">
+                                      Stock: {item.currentStock || 0} {item.unit || 'PCS'}
+                                    </div>
+                                  </div>
+                                  <span className="font-bold text-slate-900 font-mono shrink-0">
+                                    ₹{Number(rate || 0).toLocaleString('en-IN')}
+                                  </span>
+                                </button>
                               );
                             })
-                          : rawMaterials.map((rm) => {
-                              const cleanName = rm.name.length > 36 ? rm.name.slice(0, 36).trim() + '…' : rm.name;
-                              return (
-                                <option key={rm.id} value={rm.id} title={rm.name}>
-                                  {rm.sku ? `[${rm.sku}] ` : ''}{cleanName} (Stock: {rm.currentStock} {rm.unit}) - ₹{rm.unitCost}
-                                </option>
-                              );
-                            })}
-                      </select>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Quantity */}
@@ -2711,9 +2865,9 @@ function QuotationsPageContent() {
 
         {/* SEND QUOTATION MODAL (WhatsApp & Email) */}
         {isSendModalOpen && sendTargetQuote && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full my-auto max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white ${sendChannel === 'whatsapp' ? 'bg-emerald-600' : 'bg-blue-600'}`}>
                     {sendChannel === 'whatsapp' ? <MessageSquare className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
@@ -2736,7 +2890,7 @@ function QuotationsPageContent() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-4 text-xs">
+              <div className="p-6 space-y-4 text-xs overflow-y-auto max-h-[calc(92vh-130px)]">
                 {/* Select Channel */}
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Select Sending Method</label>
@@ -2864,11 +3018,82 @@ function QuotationsPageContent() {
                     <span className="text-[10px] text-slate-400">Fetched automatically</span>
                   </div>
                   <textarea
-                    rows={8}
+                    rows={7}
                     value={sendMessageText}
                     onChange={(e) => setSendMessageText(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-[11px] font-mono leading-relaxed text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none resize-none"
                   />
+                </div>
+
+                {/* Additional Attachments Section */}
+                <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                      <Paperclip className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Additional Customer Attachments</span>
+                      <span className="text-[10px] font-normal text-slate-500">
+                        (Catalogues, spec sheets, photos, drawings)
+                      </span>
+                    </div>
+
+                    <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg cursor-pointer transition">
+                      <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{isUploadingAttachment ? 'Uploading...' : '+ Attach File'}</span>
+                      <input
+                        type="file"
+                        onChange={handleFileUpload}
+                        disabled={isUploadingAttachment}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {sendAttachments.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic">
+                      The official Quotation PDF is automatically attached. You can optionally attach extra files here (catalogues, brochures, or specs) to send along with the quotation.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5 pt-1">
+                      {sendAttachments.map((att, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <Paperclip className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="font-medium text-slate-800 truncate" title={att.name}>
+                              {att.name}
+                            </span>
+                            {att.size && (
+                              <span className="text-[10px] text-slate-400">
+                                ({Math.round(att.size / 1024)} KB)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {att.url && (
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] text-blue-600 hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttachment(idx)}
+                              className="text-slate-400 hover:text-rose-600 p-0.5 rounded cursor-pointer"
+                              title="Remove attachment"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Modal Actions */}

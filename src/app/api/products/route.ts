@@ -1,48 +1,72 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const products: any[] = await prisma.$queryRawUnsafe(`
-      SELECT 
-        id,
-        "productCode",
-        sku,
-        name,
-        category,
-        brand,
-        "connectorType",
-        "cableLengthWireSpec",
-        "vehicleScannerCompatibility",
-        subcategory,
-        description,
-        "purchaseCost",
-        "sellingPrice",
-        discount,
-        "gstPercent",
-        "hsnSac",
-        COALESCE("openingStock", 0) as "openingStock",
-        COALESCE("currentStock", 0) as "currentStock",
-        COALESCE("minStock", 0) as "minStock",
-        COALESCE("maxStock", 1000) as "maxStock",
-        COALESCE("returnCount", 0) as "returnCount",
-        COALESCE("onlineSalesCount", 0) as "onlineSalesCount",
-        COALESCE("offlineSalesCount", 0) as "offlineSalesCount",
-        COALESCE("salesCount", 0) as "salesCount",
-        COALESCE("replacementCount", 0) as "replacementCount",
-        status,
-        "imageUrl",
-        "rawMaterialQuantities",
-        "createdAt",
-        "updatedAt"
-      FROM "ProductMaster"
-      ORDER BY "createdAt" DESC
-    `);
+    const { searchParams } = new URL(request.url);
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
 
-    // Fetch all BOMs with items to populate rawMaterialQuantities
-    const boms = await prisma.bOM.findMany({
-      include: { items: true },
-    });
+    let products: any[] = [];
+    let totalCount = 0;
+
+    if (pageParam || limitParam) {
+      const page = Math.max(1, parseInt(pageParam || '1', 10));
+      const limit = Math.max(1, Math.min(200, parseInt(limitParam || '50', 10)));
+      const skip = (page - 1) * limit;
+
+      try {
+        [products, totalCount] = await Promise.all([
+          prisma.productMaster.findMany({
+            skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          }),
+          prisma.productMaster.count(),
+        ]);
+      } catch {
+        products = await prisma.$queryRawUnsafe(`
+          SELECT 
+            id, "productCode", sku, name, category, brand, "connectorType", "cableLengthWireSpec",
+            "vehicleScannerCompatibility", subcategory, description, COALESCE("purchaseCost", 0) as "purchaseCost",
+            COALESCE("sellingPrice", 0) as "sellingPrice", COALESCE(discount, 0) as discount,
+            COALESCE("gstPercent", 18) as "gstPercent", "hsnSac", COALESCE("openingStock", 0) as "openingStock",
+            COALESCE("currentStock", 0) as "currentStock", COALESCE("minStock", 0) as "minStock",
+            COALESCE("maxStock", 1000) as "maxStock", status, "imageUrl", "rawMaterialQuantities", "createdAt", "updatedAt"
+          FROM "ProductMaster" ORDER BY "createdAt" DESC LIMIT $1 OFFSET $2
+        `, limit, skip);
+        totalCount = products.length;
+      }
+    } else {
+      try {
+        products = await prisma.productMaster.findMany({
+          orderBy: { createdAt: 'desc' },
+        });
+        totalCount = products.length;
+      } catch (prismaErr) {
+        products = await prisma.$queryRawUnsafe(`
+          SELECT 
+            id, "productCode", sku, name, category, brand, "connectorType", "cableLengthWireSpec",
+            "vehicleScannerCompatibility", subcategory, description, COALESCE("purchaseCost", 0) as "purchaseCost",
+            COALESCE("sellingPrice", 0) as "sellingPrice", COALESCE(discount, 0) as discount,
+            COALESCE("gstPercent", 18) as "gstPercent", "hsnSac", COALESCE("openingStock", 0) as "openingStock",
+            COALESCE("currentStock", 0) as "currentStock", COALESCE("minStock", 0) as "minStock",
+            COALESCE("maxStock", 1000) as "maxStock", status, "imageUrl", "rawMaterialQuantities", "createdAt", "updatedAt"
+          FROM "ProductMaster" ORDER BY "createdAt" DESC
+        `);
+        totalCount = products.length;
+      }
+    }
+
+    // 2. Fetch all BOMs with items to populate rawMaterialQuantities if needed
+    let boms: any[] = [];
+    try {
+      boms = await prisma.bOM.findMany({
+        include: { items: true },
+      });
+    } catch {
+      boms = [];
+    }
 
     const productsWithQuantities = products.map((p) => {
       let rawMaterialQuantities: any[] = [];
@@ -58,10 +82,10 @@ export async function GET() {
         const activeBOM =
           boms.find((b) => b.productId === p.id && b.status === 'Active') ||
           boms.find((b) => b.productId === p.id) ||
-          boms.find((b) => b.productName.toLowerCase() === p.name.toLowerCase());
+          boms.find((b) => b.productName?.toLowerCase() === p.name?.toLowerCase());
 
         rawMaterialQuantities = activeBOM
-          ? activeBOM.items.map((i) => ({
+          ? activeBOM.items.map((i: any) => ({
               rawMaterialId: i.rawMaterialId,
               rawMaterialName: i.rawMaterialName,
               sku: i.sku,
@@ -75,11 +99,22 @@ export async function GET() {
 
       return {
         ...p,
+        returnCount: p.returnCount ?? 0,
+        onlineSalesCount: p.onlineSalesCount ?? 0,
+        offlineSalesCount: p.offlineSalesCount ?? 0,
+        salesCount: p.salesCount ?? 0,
+        replacementCount: p.replacementCount ?? 0,
         rawMaterialQuantities,
       };
     });
 
-    return NextResponse.json({ success: true, data: productsWithQuantities });
+    return NextResponse.json({
+      success: true,
+      data: productsWithQuantities,
+      pagination: {
+        totalCount,
+      },
+    });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, message: error.message || 'Failed to fetch products' },
@@ -308,8 +343,6 @@ export async function PUT(request: Request) {
         ...(data.hsnSac !== undefined && { hsnSac: data.hsnSac }),
         ...(data.openingStock !== undefined && { openingStock: parseFloat(data.openingStock) }),
         ...(data.currentStock !== undefined && { currentStock: parseFloat(data.currentStock) }),
-        ...(data.salesCount !== undefined && { salesCount: parseFloat(data.salesCount) }),
-        ...(data.returnCount !== undefined && { returnCount: parseFloat(data.returnCount) }),
         ...(data.minStock !== undefined && { minStock: parseFloat(data.minStock) }),
         ...(data.maxStock !== undefined && { maxStock: parseFloat(data.maxStock) }),
         ...(data.status && { status: data.status }),

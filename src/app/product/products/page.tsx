@@ -65,6 +65,8 @@ export default function ProductsPage() {
 
   const [selectedProduct, setSelectedProduct] = useState<ProductMaster | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'specs' | 'materials' | 'pricing' | 'gst' | 'stock' | 'compatibility' | 'bom' | 'production' | 'history'>('basic');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -250,6 +252,47 @@ export default function ProductsPage() {
     });
     setFormError(null);
     setIsEditModalOpen(true);
+  };
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    // Limit to 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size exceeds 5MB limit.');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      const res = await fetch('/api/products/upload-image', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+
+      const resData = await res.json();
+      if (resData.success && resData.imageUrl) {
+        setFormData((prev) => ({ ...prev, imageUrl: resData.imageUrl }));
+      } else {
+        alert(resData.message || 'Failed to upload product image.');
+      }
+    } catch (err: any) {
+      alert(`Error uploading image: ${err?.message || 'Server error'}`);
+    } finally {
+      setIsUploadingImage(false);
+      if (imageFileInputRef.current) {
+        imageFileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleOpenDetails = (p: ProductMaster) => {
@@ -1152,15 +1195,66 @@ export default function ProductsPage() {
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500 focus:bg-white"
                       />
                     </div>
-                    <div>
-                      <label className="block text-slate-700 text-[11px] mb-1 font-semibold">Product Image URL</label>
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-700 text-[11px] mb-1.5 font-bold uppercase tracking-wide">Product Image</label>
                       <input
-                        type="text"
-                        placeholder="https://..."
-                        value={formData.imageUrl}
-                        onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
+                        ref={imageFileInputRef}
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
+                        onChange={handleImageFileChange}
+                        className="hidden"
                       />
+
+                      {formData.imageUrl ? (
+                        <div className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                          <div className="w-16 h-16 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                            <img
+                              src={formData.imageUrl}
+                              alt="Uploaded Product"
+                              className="w-full h-full object-contain p-1"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-800 truncate">Image uploaded successfully</p>
+                            <p className="text-[11px] text-slate-400 truncate mt-0.5">Ready to save with product master</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <button
+                                type="button"
+                                disabled={isUploadingImage}
+                                onClick={() => imageFileInputRef.current?.click()}
+                                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                              >
+                                Replace Image
+                              </button>
+                              <span className="text-slate-300">•</span>
+                              <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, imageUrl: '' })}
+                                className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isUploadingImage}
+                          onClick={() => imageFileInputRef.current?.click()}
+                          className="w-full border-2 border-dashed border-slate-300 hover:border-blue-400 bg-slate-50/60 hover:bg-blue-50/30 rounded-xl p-4 flex flex-col items-center justify-center transition cursor-pointer group"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                            <Upload className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-bold text-slate-700">
+                            {isUploadingImage ? 'Uploading product image...' : 'Click to Upload Product Image'}
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Supports PNG, JPG, JPEG, WEBP (Max 5MB)
+                          </p>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

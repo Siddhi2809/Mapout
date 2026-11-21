@@ -7,6 +7,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const shouldReset = searchParams.get('reset') === 'true';
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
 
     // Manual reset requested via query parameter
     if (shouldReset) {
@@ -22,14 +24,43 @@ export async function GET(request: Request) {
       }
     }
 
+    // If pagination requested
+    if (pageParam || limitParam) {
+      const page = Math.max(1, parseInt(pageParam || '1', 10));
+      const limit = Math.max(1, Math.min(200, parseInt(limitParam || '50', 10)));
+      const skip = (page - 1) * limit;
+
+      const [leads, totalCount] = await Promise.all([
+        prisma.lead.findMany({
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.lead.count(),
+      ]);
+
+      return NextResponse.json({
+        success: true,
+        data: leads,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+        },
+      });
+    }
+
+    // Default fast load: If no pagination query, return recent leads up to 500 for lightning speed
     const leads = await prisma.lead.findMany({
+      take: 500,
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json({ success: true, data: leads });
   } catch (error: any) {
     try {
       const rawLeads: any[] = await prisma.$queryRawUnsafe(
-        `SELECT * FROM "Lead" ORDER BY "createdAt" DESC`
+        `SELECT * FROM "Lead" ORDER BY "createdAt" DESC LIMIT 500`
       );
       return NextResponse.json({ success: true, data: rawLeads });
     } catch (e: any) {

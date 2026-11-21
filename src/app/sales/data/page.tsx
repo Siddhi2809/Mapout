@@ -80,6 +80,9 @@ export default function SalesDataPage() {
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>('ALL');
   const [selectedState, setSelectedState] = useState<string>('ALL');
   const [selectedBrand, setSelectedBrand] = useState<string>('ALL');
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   // Modal States
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
@@ -309,6 +312,18 @@ export default function SalesDataPage() {
       return true;
     });
   }, [pipelineLeads, selectedStatus, selectedSalesperson, searchQuery]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedStatus, selectedSalesperson, selectedState, selectedBrand]);
+
+  // Paginated Sliced Data
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredData.slice(start, start + pageSize);
+  }, [filteredData, currentPage, pageSize]);
 
   const handleStatusChange = async (leadId: string, newStatus: LeadStatus) => {
     setIsUpdatingStatus(leadId);
@@ -600,7 +615,7 @@ export default function SalesDataPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredData.map((lead) => {
+                  paginatedData.map((lead) => {
                     const isUpdating = isUpdatingStatus === lead.id;
                     return (
                       <tr key={lead.id} className="hover:bg-blue-50/30 transition-colors">
@@ -733,15 +748,87 @@ export default function SalesDataPage() {
             </table>
           </div>
 
-          {/* Table Footer */}
-          <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span>
-              Showing <span className="font-semibold text-gray-700">{filteredData.length}</span> of{' '}
-              <span className="font-semibold text-gray-700">{pipelineLeads.length}</span> active pipeline records
-            </span>
-            <span className="italic">
-              * Leads updated to &apos;Not Contacted&apos; will move out of this view back to raw leads.
-            </span>
+          {/* Table Footer with Pagination Controls */}
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span>
+                Showing{' '}
+                <span className="font-semibold text-gray-700">
+                  {filteredData.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
+                </span>{' '}
+                to{' '}
+                <span className="font-semibold text-gray-700">
+                  {Math.min(currentPage * pageSize, filteredData.length)}
+                </span>{' '}
+                of <span className="font-semibold text-gray-700">{filteredData.length}</span> filtered records
+              </span>
+
+              <span className="text-gray-300">|</span>
+
+              <div className="flex items-center gap-1.5">
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="border border-gray-300 rounded px-2 py-0.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Pagination Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[11px]"
+                  title="First Page"
+                >
+                  &laquo; First
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[11px]"
+                  title="Previous Page"
+                >
+                  &lsaquo; Prev
+                </button>
+
+                <span className="px-2.5 py-1 text-xs font-semibold text-gray-700">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[11px]"
+                  title="Next Page"
+                >
+                  Next &rsaquo;
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[11px]"
+                  title="Last Page"
+                >
+                  Last &raquo;
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
