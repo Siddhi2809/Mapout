@@ -974,6 +974,8 @@ export interface ProductMaster {
   description?: string;
   purchaseCost: number;
   sellingPrice: number;
+  websitePrice?: number;
+  amazonPrice?: number;
   discount?: number;
   gstPercent: number;
   hsnSac?: string;

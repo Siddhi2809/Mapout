@@ -426,25 +426,21 @@ export async function PUT(request: Request) {
 
     let updatedRecord: any = null;
     if (targetOrder) {
-      try {
-        updatedRecord = await prisma.salesOrder.update({
-          where: { id: targetOrder.id },
-          data: updateData,
-        });
-      } catch (upErr: any) {
-        console.warn('prisma.salesOrder.update warning:', upErr.message);
-        // Fallback update using orderNumber if id lookup failed
-        if (targetOrder.orderNumber) {
-          try {
-            updatedRecord = await prisma.salesOrder.update({
-              where: { orderNumber: targetOrder.orderNumber },
-              data: updateData,
-            });
-          } catch (numUpErr: any) {
-            console.warn('prisma.salesOrder.update by orderNumber warning:', numUpErr.message);
-          }
-        }
+      const keys = Object.keys(updateData);
+      if (keys.length > 0) {
+        const setClauses = keys.map((k, idx) => `"${k}" = $${idx + 1}`).join(', ');
+        const values = keys.map((k) => updateData[k]);
+        values.push(targetOrder.id);
+        await prisma.$executeRawUnsafe(
+          `UPDATE "SalesOrder" SET ${setClauses}, "updatedAt" = NOW() WHERE "id" = $${values.length}`,
+          ...values
+        );
       }
+      const rows: any[] = await prisma.$queryRawUnsafe(
+        `SELECT * FROM "SalesOrder" WHERE "id" = $1`,
+        targetOrder.id
+      );
+      updatedRecord = rows[0] || targetOrder;
     }
 
     // 5. Sync status to linked Quotation if orderStatus or dispatchStatus changed

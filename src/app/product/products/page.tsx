@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { PRODUCT_NAV } from '@/lib/nav';
 import { useERP } from '@/context/ERPContext';
@@ -471,10 +472,20 @@ export default function ProductsPage() {
     setImportFile(file);
     setImportError(null);
 
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const text = event.target?.result as string;
+        let text = '';
+        if (isExcel) {
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const firstSheet = workbook.Sheets[firstSheetName];
+          text = XLSX.utils.sheet_to_csv(firstSheet);
+        } else {
+          text = (event.target?.result as string) || '';
+        }
         if (!text) {
           setImportError('File is empty or unreadable.');
           return;
@@ -560,7 +571,12 @@ export default function ProductsPage() {
         setImportError('Failed to parse file: ' + err.message);
       }
     };
-    reader.readAsText(file);
+    if (isExcel) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
+    
   };
 
   const handleExecuteImport = () => {

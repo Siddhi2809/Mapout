@@ -53,28 +53,27 @@ export async function PUT(request: Request) {
     if (!id) {
       return NextResponse.json({ success: false, message: 'Missing task ID' }, { status: 400 });
     }
-    const now = new Date().toISOString();
+    const fields: Record<string, any> = {
+      task,
+      assignedTeam,
+      assignedUser,
+      priority,
+      dueDate,
+      status,
+      notes,
+    };
+    const entries = Object.entries(fields).filter(([, v]) => v !== undefined);
+    if (entries.length === 0) {
+      return NextResponse.json({ success: false, message: 'No fields to update' }, { status: 400 });
+    }
+
+    const setClauses = entries.map(([k], idx) => `"${k}" = $${idx + 1}`).join(', ');
+    const values = entries.map(([, v]) => v);
+    values.push(id);
 
     await prisma.$executeRawUnsafe(
-      `UPDATE "AdminTask"
-       SET "task" = COALESCE($2, "task"),
-           "assignedTeam" = COALESCE($3, "assignedTeam"),
-           "assignedUser" = COALESCE($4, "assignedUser"),
-           "priority" = COALESCE($5, "priority"),
-           "dueDate" = COALESCE($6, "dueDate"),
-           "status" = COALESCE($7, "status"),
-           "notes" = COALESCE($8, "notes"),
-           "updatedAt" = $9::timestamp
-       WHERE "id" = $1`,
-      id,
-      task || null,
-      assignedTeam || null,
-      assignedUser || null,
-      priority || null,
-      dueDate || null,
-      status || null,
-      notes || null,
-      now
+      `UPDATE "AdminTask" SET ${setClauses}, "updatedAt" = NOW() WHERE "id" = $${values.length}`,
+      ...values
     );
 
     return NextResponse.json({ success: true, message: 'Task updated successfully' });

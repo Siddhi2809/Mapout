@@ -22,6 +22,17 @@ interface DailyReportItem {
   createdAt: string;
 }
 
+interface AssignedTaskItem {
+  id: string;
+  task: string;
+  assignedTeam: string;
+  assignedUser: string;
+  priority: string;
+  dueDate: string;
+  status: string;
+  notes?: string;
+}
+
 export default function DailyReportPage() {
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
   const [employeeName, setEmployeeName] = useState('');
@@ -32,6 +43,8 @@ export default function DailyReportPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [myRecentReports, setMyRecentReports] = useState<DailyReportItem[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState(true);
+  const [myTasks, setMyTasks] = useState<AssignedTaskItem[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(true);
 
   // Load user data on mount
   useEffect(() => {
@@ -43,15 +56,55 @@ export default function DailyReportPage() {
         const name = u.name || u.roleTitle || 'Employee';
         setEmployeeName(name);
         fetchMyReports(name);
+        fetchMyTasks(name);
       } else {
         setEmployeeName('Employee');
         fetchMyReports('Employee');
+        fetchMyTasks('Employee');
       }
     } catch {
       setEmployeeName('Employee');
       fetchMyReports('Employee');
+      fetchMyTasks('Employee');
     }
   }, []);
+
+  const fetchMyTasks = async (name: string) => {
+    try {
+      setIsLoadingTasks(true);
+      const res = await fetch('/api/tasks');
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        const lower = name.trim().toLowerCase();
+        const mine = result.data.filter(
+          (t: AssignedTaskItem) =>
+            (t.assignedUser || '').trim().toLowerCase() === lower ||
+            (t.assignedUser || '').trim().toLowerCase().includes(lower)
+        );
+        setMyTasks(mine);
+      }
+    } catch (err) {
+      console.error('Failed to fetch assigned tasks:', err);
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  };
+
+  const handleTaskStatusChange = async (id: string, newStatus: string) => {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMyTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t)));
+      }
+    } catch (err) {
+      console.error('Failed to update task status:', err);
+    }
+  };
 
   const fetchMyReports = async (name: string) => {
     try {
@@ -269,6 +322,58 @@ export default function DailyReportPage() {
                   <p className="text-xs text-slate-600 whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-100">
                     {rep.work}
                   </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* My Assigned Tasks */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-blue-600" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                My Assigned Tasks
+              </h2>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-400">
+              {myTasks.length} Assigned
+            </span>
+          </div>
+
+          {isLoadingTasks ? (
+            <div className="py-6 text-center text-xs text-slate-400">Loading your assigned tasks...</div>
+          ) : myTasks.length === 0 ? (
+            <div className="py-6 text-center text-xs text-slate-400">
+              No tasks assigned to {employeeName || 'you'} yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 space-y-3">
+              {myTasks.map((t) => (
+                <div key={t.id} className="pt-3 first:pt-0 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-900">{t.task}</span>
+                    <select
+                      value={t.status}
+                      onChange={(e) => handleTaskStatusChange(t.id, e.target.value)}
+                      className="px-2 py-1 text-[11px] font-semibold border border-slate-200 rounded-lg bg-white"
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                    <span>Due: {t.dueDate}</span>
+                    <span>Priority: {t.priority}</span>
+                    <span>Team: {t.assignedTeam}</span>
+                  </div>
+                  {t.notes && (
+                    <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                      {t.notes}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

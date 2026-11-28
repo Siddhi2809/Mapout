@@ -1438,10 +1438,14 @@ export default function ProductSalesOrdersPage() {
                           type="button"
                           onClick={() => {
                             setTargetProductionStatus(st);
-                            if (st === 'Packed' || st === 'Ready for Dispatch') {
+                            if (st === 'Ready for Dispatch') {
+                              setTargetPackingStatus('Ready for Dispatch');
+                            } else if (st === 'Packed') {
                               setTargetPackingStatus('Packed');
                             } else if (st === 'Packing') {
                               setTargetPackingStatus('Packing');
+                            } else {
+                              setTargetPackingStatus('Pending');
                             }
                           }}
                           className={`p-2.5 rounded-xl text-xs font-bold border transition text-center flex flex-col items-center gap-1 cursor-pointer ${

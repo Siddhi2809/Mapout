@@ -39,6 +39,7 @@ export const PRODUCT_NAV: NavItem[] = [
   { label: 'Stock', href: '/product/stock', icon: Boxes },
   { label: 'Products', href: '/product/products', icon: Boxes },
   { label: 'Production / Sales Orders', href: '/product/orders', icon: ShoppingCart },
+  { label: 'Amazon Sale Orders', href: '/product/amazon-orders', icon: ShoppingCart },
   { label: 'BOM', href: '/product/bom', icon: Layers },
   { label: 'Finished Goods', href: '/product/finished-goods', icon: PackageCheck },
   { label: 'Returns / Replacement', href: '/product/returns', icon: RotateCcw },
@@ -70,5 +71,6 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Notification Center', href: '/admin#notifications', icon: Bell },
   { label: 'Admin Reports (10)', href: '/admin#reports', icon: FileText },
   { label: 'Module Control & Authority', href: '/admin#authority', icon: Factory },
+  { label: 'Assign Tasks', href: '/admin/tasks', icon: FileCheck },
 ];
 
